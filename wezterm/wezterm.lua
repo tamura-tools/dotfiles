@@ -5,7 +5,29 @@ local config = {}
 -- 最大化で起動
 wezterm.on('gui-startup', function(cmd)
   local tab, pane, window = mux.spawn_window(cmd or {})
-  window:gui_window():maximize()
+  
+  -- 左右に分割
+  local right_pane = pane:split {
+    direction = 'Right',
+    size = 0.75,
+  }
+  
+  -- 左側を上下に分割（上:yazi、下:keifu）
+  local left_bottom = pane:split {
+    direction = 'Bottom',
+    size = 0.4,
+  }
+  
+  -- 右側を上下に分割（上:Claude Code、下:ターミナル）
+  local right_bottom = right_pane:split {
+    direction = 'Bottom',
+    size = 0.4,
+  }
+  
+  -- 各ペインでコマンド実行
+  pane:send_text('yazi\n')
+  left_bottom:send_text('keifu\n')
+  right_pane:send_text('claude\n')
 end)
 
 config.color_scheme = 'Tokyo Night'
