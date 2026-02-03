@@ -57,7 +57,7 @@ if is_windows then
   }
 else
   -- Mac
-  config.default_cwd = wezterm.home_dir
+  config.default_cwd = wezterm.home_dir .. "/claude"
   config.background = {
     {
       source = { File = wezterm.home_dir .. '/Pictures/wezterm/wallhaven-lmjgpr.jpg' },
