@@ -122,12 +122,18 @@ while true; do
 
     if [ -n "$API_KEY" ]; then
         tasks_json=$(curl -s -H "Authorization: Bearer $API_KEY" \
-            "https://api.todoist.com/rest/v2/tasks?filter=today%7Coverdue" 2>/dev/null)
+            "https://api.todoist.com/api/v1/tasks?filter=today%7Coverdue" 2>/dev/null | python3 -c "
+import sys,json
+from datetime import datetime
+today = datetime.now().strftime('%Y-%m-%d')
+data = json.load(sys.stdin).get('results',[])
+filtered = [t for t in data if t.get('due') and t['due'].get('date','') <= today]
+print(json.dumps(filtered))
+" 2>/dev/null)
 
         today=$(TZ="Asia/Tokyo" date +"%Y-%m-%dT00:00:00")
         completed_json=$(curl -s -H "Authorization: Bearer $API_KEY" \
-            "https://api.todoist.com/sync/v9/completed/get_all?since=$today" 2>/dev/null)
-        completed_count=$(echo "$completed_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('items',[])))" 2>/dev/null || echo 0)
+            "https://api.todoist.com/api/v1/tasks/completed?since=$today" 2>/dev/null)
 
         task_count=$(echo "$tasks_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo 0)
     fi
