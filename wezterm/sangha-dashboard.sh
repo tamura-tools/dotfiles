@@ -1,20 +1,17 @@
 #!/bin/bash
 # ============================================
-#  Sangha Dashboard v1.4 (macOS/Linux)
+#  Sangha Dashboard v1.6 (macOS/Linux)
 #  WezTerm Pane Dashboard with Todoist + Clock
 # ============================================
 
-# --- Configuration ---
-API_KEY="${TODOIST_API_KEY:-}"  # 環境変数から読み込み
+API_KEY="${TODOIST_API_KEY:-}"
 INTERVAL=60
 THM="tokyo-night"
 
-# ESC
 E=$'\033'
 R="${E}[0m"
 B="${E}[1m"
 
-# --- Color Themes ---
 declare_theme() {
     case "$THM" in
         tokyo-night)
@@ -88,10 +85,8 @@ declare_theme() {
 
 declare_theme
 
-# Separator
-SEP="${C_border}$(printf '─%.0s' {1..44})${R}"
+SEP="${C_border}$(printf '\xe2\x94\x80%.0s' {1..44})${R}"
 
-# Hide cursor
 printf "${E}[?25l"
 
 cleanup() {
@@ -100,76 +95,98 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# --- API Key Check ---
 if [ -z "$API_KEY" ]; then
     echo ""
-    echo "  ${C_error}${B}⚠ TODOIST_API_KEY が未設定です${R}"
+    echo "  ${C_error}${B}! TODOIST_API_KEY is not set${R}"
     echo ""
-    echo "  ${C_fg}以下を ~/.zshrc に追加してください:${R}"
+    echo "  ${C_fg}Add to ~/.zshenv:${R}"
     echo "  ${C_cyan}export TODOIST_API_KEY=\"your-api-key\"${R}"
     echo ""
-    echo "  ${C_dim}設定後、source ~/.zshrc を実行${R}"
+    echo "  ${C_dim}Then restart WezTerm${R}"
     echo ""
     sleep 5
 fi
 
-# --- Main Loop ---
 while true; do
-    # --- Fetch Todoist tasks ---
     tasks_json=""
     completed_count=0
     task_count=0
 
     if [ -n "$API_KEY" ]; then
-        tasks_json=$(curl -s -H "Authorization: Bearer $API_KEY" \
-            "https://api.todoist.com/api/v1/tasks?filter=today%7Coverdue" 2>/dev/null | python3 -c "
-import sys,json
-from datetime import datetime
-today = datetime.now().strftime('%Y-%m-%d')
-data = json.load(sys.stdin).get('results',[])
-filtered = [t for t in data if t.get('due') and t['due'].get('date','') <= today]
-print(json.dumps(filtered))
+        # --- Active tasks (API v1, client-side filter) ---
+        today_date=$(TZ="Asia/Tokyo" date +"%Y-%m-%d")
+        raw_json=$(curl -s -H "Authorization: Bearer $API_KEY" \
+            "https://api.todoist.com/api/v1/tasks" 2>/dev/null)
+
+        tasks_json=$(echo "$raw_json" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    results = data.get('results', []) if isinstance(data, dict) else data if isinstance(data, list) else []
+    today = '$today_date'
+    filtered = [t for t in results if t.get('due') and t['due'].get('date','') <= today]
+    print(json.dumps(filtered))
+except:
+    print('[]')
 " 2>/dev/null)
 
+        task_count=$(echo "$tasks_json" | python3 -c "
+import sys, json
+try:
+    print(len(json.load(sys.stdin)))
+except:
+    print(0)
+" 2>/dev/null)
+
+        # --- Completed tasks (API v1) ---
         today=$(TZ="Asia/Tokyo" date +"%Y-%m-%dT00:00:00")
         completed_json=$(curl -s -H "Authorization: Bearer $API_KEY" \
             "https://api.todoist.com/api/v1/tasks/completed?since=$today" 2>/dev/null)
 
-        task_count=$(echo "$tasks_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d))" 2>/dev/null || echo 0)
+        completed_count=$(echo "$completed_json" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    items = data.get('items', [])
+    print(len(items))
+except:
+    print(0)
+" 2>/dev/null)
     fi
 
+    # Fallback
+    task_count=${task_count:-0}
+    completed_count=${completed_count:-0}
     all_total=$((task_count + completed_count))
 
-    # --- Time (JST) ---
     time_str=$(TZ="Asia/Tokyo" date +"%H:%M:%S")
     date_str=$(TZ="Asia/Tokyo" date +"%Y-%m-%d (%a)")
 
-    # --- Render ---
     clear
 
-    # Header
     echo ""
-    echo "  ${C_accent}${B}☸ Sangha Dashboard${R}"
+    echo "  ${C_accent}${B}  Sangha Dashboard${R}"
     echo "  ${SEP}"
     echo ""
-    echo "  ${C_highlight}${B}⏰ ${time_str}${R}"
-    echo "  ${C_fg}📅 ${date_str}${R}"
+    echo "  ${C_highlight}${B}  ${time_str}${R}"
+    echo "  ${C_fg}  ${date_str}${R}"
     echo ""
     echo "  ${SEP}"
 
-    # Tasks
     echo ""
-    echo "  ${C_cyan}${B}📋 Today's Tasks${R}"
+    echo "  ${C_cyan}${B}  Today's Tasks${R}"
     echo ""
 
     if [ -z "$API_KEY" ]; then
-        echo "  ${C_warning}  API未設定 - 時計のみ表示中${R}"
+        echo "  ${C_warning}  API not set${R}"
     elif [ "$task_count" -eq 0 ] 2>/dev/null; then
-        echo "  ${C_success}✅ All clear!${R}"
+        echo "  ${C_success}  All clear!${R}"
     else
         echo "$tasks_json" | python3 -c "
 import sys, json
 tasks = json.load(sys.stdin)
+if not isinstance(tasks, list):
+    sys.exit(0)
 tasks.sort(key=lambda t: t.get('priority', 1), reverse=True)
 E = '\033'
 R = '${R}'
@@ -187,7 +204,8 @@ for i, t in enumerate(tasks[:12]):
     if len(name) > 30:
         name = name[:27] + '...'
     pad = ' ' * max(0, 30 - len(name))
-    print(f'  ${C_fg}  ○ {name}{pad}{pc}({pl}){R}')
+    circle = '\u25cb'
+    print(f'  ${C_fg}  {circle} {name}{pad}{pc}({pl}){R}')
 if len(tasks) > 12:
     rem = len(tasks) - 12
     print(f'  ${C_dim}  ... +{rem} more{R}')
@@ -205,14 +223,12 @@ if len(tasks) > 12:
         fill=$((completed_count * bar_w / all_total))
     fi
     empty=$((bar_w - fill))
-    f_bar=$(printf '█%.0s' $(seq 1 $fill 2>/dev/null) 2>/dev/null)
-    e_bar=$(printf '░%.0s' $(seq 1 $empty 2>/dev/null) 2>/dev/null)
-    # Handle zero case
+    f_bar=$(printf '\xe2\x96\x88%.0s' $(seq 1 $fill 2>/dev/null) 2>/dev/null)
+    e_bar=$(printf '\xe2\x96\x91%.0s' $(seq 1 $empty 2>/dev/null) 2>/dev/null)
     [ "$fill" -eq 0 ] && f_bar=""
     [ "$empty" -eq 0 ] && e_bar=""
-    echo "  ${C_success}✓ [OK] ${completed_count}/${all_total} done${R}  ${C_success}${f_bar}${C_dim}${e_bar}${R}"
+    echo "  ${C_success}  [OK] ${completed_count}/${all_total} done${R}  ${C_success}${f_bar}${C_dim}${e_bar}${R}"
 
-    # Footer
     echo ""
     echo "  ${SEP}"
     echo "  ${C_dim}  Refresh: ${INTERVAL}s  |  Theme: ${THM}${R}"

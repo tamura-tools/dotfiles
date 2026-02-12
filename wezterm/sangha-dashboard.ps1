@@ -1,26 +1,21 @@
 # ============================================
-#  Sangha Dashboard v1.5
+#  Sangha Dashboard v1.6
 #  WezTerm Pane Dashboard with Todoist + Clock
 #  Windows PowerShell 5.x compatible
 # ============================================
 
-# --- Configuration ---
 $API_KEY  = $env:TODOIST_API_KEY
 $INTERVAL = 60
 $TZ       = "Tokyo Standard Time"
 $THM      = "tokyo-night"
 
-# TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# ESC character
 $E = [char]27
 
-# Force UTF-8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
-# --- Color Themes ---
 $allThemes = @{
     "tokyo-night" = @{
         fg        = "$E[38;2;169;177;214m"
@@ -94,11 +89,9 @@ $C = $allThemes[$THM]
 $R = "$E[0m"
 $B = "$E[1m"
 
-# --- Build separator line ---
 $sepChar = [char]0x2500
 $SEP = "$($C.border)$("$sepChar" * 44)$R"
 
-# --- API Key Check ---
 if (-not $API_KEY) {
     Write-Host ""
     Write-Host "  $($C.error)${B}! TODOIST_API_KEY is not set$R"
@@ -111,7 +104,6 @@ if (-not $API_KEY) {
     Start-Sleep -Seconds 5
 }
 
-# --- Main Loop ---
 $hideCursor = "$E[?25l"
 $showCursor = "$E[?25h"
 Write-Host $hideCursor -NoNewline
@@ -119,22 +111,30 @@ Write-Host $hideCursor -NoNewline
 try {
     while ($true) {
         $tasks = @()
+        $taskCount = 0
         $completedCount = 0
 
         if ($API_KEY) {
+            # --- Active tasks (API v1, client-side filter) ---
             $wc = $null
             try {
                 $wc = New-Object System.Net.WebClient
                 $wc.Encoding = [System.Text.Encoding]::UTF8
                 $wc.Headers.Add("Authorization", "Bearer $API_KEY")
-                $json = $wc.DownloadString("https://api.todoist.com/rest/v2/tasks?filter=today%7Coverdue")
-                $tasks = $json | ConvertFrom-Json
+                $json = $wc.DownloadString("https://api.todoist.com/api/v1/tasks")
+                $allTasks = ($json | ConvertFrom-Json).results
+                $todayStr = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).ToString("yyyy-MM-dd")
+                $filtered = @($allTasks | Where-Object { $_.due -and $_.due.date -le $todayStr })
+                $tasks = $filtered
+                $taskCount = $filtered.Count
             }
             catch {
                 $tasks = @()
+                $taskCount = 0
             }
             if ($wc) { $wc.Dispose() }
 
+            # --- Completed tasks (Sync v9) ---
             $wc2 = $null
             try {
                 $jstNow = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
@@ -142,10 +142,13 @@ try {
                 $wc2 = New-Object System.Net.WebClient
                 $wc2.Encoding = [System.Text.Encoding]::UTF8
                 $wc2.Headers.Add("Authorization", "Bearer $API_KEY")
-                $json2 = $wc2.DownloadString("https://api.todoist.com/sync/v9/completed/get_all?since=$today")
+                $json2 = $wc2.DownloadString("https://api.todoist.com/api/v1/tasks/completed?since=$today")
                 $cResp = $json2 | ConvertFrom-Json
-                if ($cResp.items) {
-                    $completedCount = ($cResp.items | Measure-Object).Count
+                if ($cResp.items -and $cResp.items -is [System.Array]) {
+                    $completedCount = $cResp.items.Length
+                }
+                elseif ($cResp.items) {
+                    $completedCount = 1
                 }
             }
             catch {
@@ -154,7 +157,6 @@ try {
             if ($wc2) { $wc2.Dispose() }
         }
 
-        $taskCount = ($tasks | Measure-Object).Count
         $allTotal = $taskCount + $completedCount
 
         $now = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
