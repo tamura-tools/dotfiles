@@ -20,7 +20,7 @@ if is_windows then
 else
   launcher_apps = {
     { id = 'claude',     label = 'Claude Code',       cmd = 'claude' },
-    { id = 'gemini',     label = 'Gemini CLI',        cmd = 'gemini' },
+    { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
     { id = 'dashboard',  label = 'Sangha Dashboard',  cmd = '~/dotfiles/wezterm/sangha-dashboard.sh' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
