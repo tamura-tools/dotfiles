@@ -215,6 +215,8 @@ end
 
 -- キーバインド
 config.keys = {
+  -- Alt+Enter をターミナルに渡す（Claude Codeの改行用）
+  { key = 'Enter', mods = 'ALT', action = act.SendKey { key = 'Enter', mods = 'ALT' } },
   { key = 'd', mods = 'CTRL|SHIFT', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
   { key = 'e', mods = 'CTRL|SHIFT', action = act.SplitVertical { domain = 'CurrentPaneDomain' } },
   { key = 'h', mods = 'CTRL', action = act.ActivatePaneDirection 'Left' },
