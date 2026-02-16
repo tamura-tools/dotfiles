@@ -10,7 +10,7 @@ local is_windows = wezterm.target_triple:find('windows') ~= nil
 local launcher_apps
 if is_windows then
   launcher_apps = {
-    { id = 'claude',     label = 'Claude Code',       cmd = 'claudecode' },
+    { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = $null; claudecode' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claudecode' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
@@ -20,7 +20,7 @@ if is_windows then
   }
 else
   launcher_apps = {
-    { id = 'claude',     label = 'Claude Code',       cmd = 'claude' },
+    { id = 'claude',     label = 'Claude Code',       cmd = 'unset CLAUDE_CONFIG_DIR; claude' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
@@ -46,8 +46,8 @@ end
 -- 比率 = 左1 : 中5 : 右2
 -- ┌──────┬────────────────────────┬──────────┐
 -- │ yazi │     Claude Code        │          │
--- │      │   (プロジェクト実行)     │ Claude   │
--- ├──────┼────────────────────────┤ (壁打ち) │
+-- │      │   (プロジェクト実行)     │ Gemini   │
+-- ├──────┼────────────────────────┤  CLI     │
 -- │lazy  │   Sangha Dashboard     │          │
 -- │ git  │                        │          │
 -- └──────┴────────────────────────┴──────────┘
@@ -87,13 +87,13 @@ wezterm.on('gui-startup', function(cmd)
     -- 中央: プロジェクトディレクトリでClaude Code（実行者）
     middle_pane:send_text('claudecode\n')
     middle_bottom:send_text('& "$HOME\\dotfiles\\wezterm\\sangha-dashboard.ps1"\n')
-    -- 右: 壁打ち専用ディレクトリでClaude Code
-    chat_pane:send_text('cd $HOME\\claude-chat; claudecode\n')
+    -- 右: Gemini CLI（壁打ち用）
+    chat_pane:send_text('cd C:\\claude; gemini\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
     middle_bottom:send_text('~/dotfiles/wezterm/sangha-dashboard.sh\n')
-    chat_pane:send_text('cd ~/claude-chat && claude\n')
+    chat_pane:send_text('cd ~/claude && gemini\n')
   end
 end)
 
