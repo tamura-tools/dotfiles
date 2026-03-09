@@ -14,7 +14,7 @@ if is_windows then
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claudecode' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
-    { id = 'dashboard',  label = 'Sangha Dashboard',  cmd = '& "$HOME\\dotfiles\\wezterm\\sangha-dashboard.ps1"' },
+    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python C:\\claude\\task.py watch' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'PowerShell',        cmd = '' },
   }
@@ -24,7 +24,7 @@ else
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
-    { id = 'dashboard',  label = 'Sangha Dashboard',  cmd = '~/dotfiles/wezterm/sangha-dashboard.sh' },
+    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python ~/claude/task.py watch' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
   }
@@ -48,7 +48,7 @@ end
 -- │ yazi │     Claude Code        │          │
 -- │      │   (プロジェクト実行)     │ Gemini   │
 -- ├──────┼────────────────────────┤  CLI     │
--- │lazy  │   Sangha Dashboard     │          │
+-- │lazy  │   Obsidian Tasks       │          │
 -- │ git  │                        │          │
 -- └──────┴────────────────────────┴──────────┘
 wezterm.on('gui-startup', function(cmd)
@@ -86,13 +86,13 @@ wezterm.on('gui-startup', function(cmd)
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
     -- 中央: プロジェクトディレクトリでClaude Code（実行者）
     middle_pane:send_text('claudecode\n')
-    middle_bottom:send_text('& "$HOME\\dotfiles\\wezterm\\sangha-dashboard.ps1"\n')
+    middle_bottom:send_text('python C:\\claude\\task.py watch\n')
     -- 右: Gemini CLI（壁打ち用）
     chat_pane:send_text('cd C:\\claude; gemini\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
-    middle_bottom:send_text('~/dotfiles/wezterm/sangha-dashboard.sh\n')
+    middle_bottom:send_text('python ~/claude/task.py watch\n')
     chat_pane:send_text('cd ~/claude && gemini\n')
   end
 end)
@@ -137,9 +137,9 @@ end
 -- ダッシュボード起動コマンド
 local dashboard_cmd
 if is_windows then
-  dashboard_cmd = '& "$HOME\\dotfiles\\wezterm\\sangha-dashboard.ps1"\r\n'
+  dashboard_cmd = 'python C:\\claude\\task.py watch\r\n'
 else
-  dashboard_cmd = '~/dotfiles/wezterm/sangha-dashboard.sh\r\n'
+  dashboard_cmd = 'python ~/claude/task.py watch\r\n'
 end
 
 -- モデル指定解除
