@@ -14,8 +14,8 @@ if is_windows then
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claudecode' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
-    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python C:\\claude\\task.py watch' },
-    { id = 'usage',      label = 'Claude Usage',      cmd = 'python C:\\claude\\claude_usage.py watch' },
+    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python C:\\claude\\tools\\task.py watch' },
+    { id = 'usage',      label = 'Claude Usage',      cmd = 'python C:\\claude\\tools\\claude_usage.py watch' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'PowerShell',        cmd = '' },
   }
@@ -25,8 +25,8 @@ else
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
-    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python ~/claude/task.py watch' },
-    { id = 'usage',      label = 'Claude Usage',      cmd = 'python ~/claude/claude_usage.py watch' },
+    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python ~/claude/tools/task.py watch' },
+    { id = 'usage',      label = 'Claude Usage',      cmd = 'python ~/claude/tools/claude_usage.py watch' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
   }
@@ -93,15 +93,15 @@ wezterm.on('gui-startup', function(cmd)
   if is_windows then
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
     middle_pane:send_text('claudecode\n')
-    middle_bottom:send_text('python C:\\claude\\task.py watch\n')
+    middle_bottom:send_text('python C:\\claude\\tools\\task.py watch\n')
     right_pane:send_text('cd C:\\claude; gemini\n')
-    right_bottom:send_text('python C:\\claude\\claude_usage.py watch\n')
+    right_bottom:send_text('python C:\\claude\\tools\\claude_usage.py watch\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
-    middle_bottom:send_text('python ~/claude/task.py watch\n')
+    middle_bottom:send_text('python ~/claude/tools/task.py watch\n')
     right_pane:send_text('cd ~/claude && gemini\n')
-    right_bottom:send_text('python ~/claude/claude_usage.py watch\n')
+    right_bottom:send_text('python ~/claude/tools/claude_usage.py watch\n')
   end
 end)
 
@@ -145,9 +145,9 @@ end
 -- ダッシュボード起動コマンド
 local dashboard_cmd
 if is_windows then
-  dashboard_cmd = 'python C:\\claude\\task.py watch\r\n'
+  dashboard_cmd = 'python C:\\claude\\tools\\task.py watch\r\n'
 else
-  dashboard_cmd = 'python ~/claude/task.py watch\r\n'
+  dashboard_cmd = 'python ~/claude/tools/task.py watch\r\n'
 end
 
 -- モデル指定解除
