@@ -15,7 +15,7 @@ if is_windows then
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
     { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python C:\\claude\\tools\\task.py watch' },
-    { id = 'usage',      label = 'Claude Usage',      cmd = 'python C:\\claude\\tools\\claude_usage.py watch' },
+    { id = 'codex',      label = 'Codex CLI',          cmd = 'cd C:\\claude; codex' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'PowerShell',        cmd = '' },
   }
@@ -26,7 +26,7 @@ else
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
     { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python ~/claude/tools/task.py watch' },
-    { id = 'usage',      label = 'Claude Usage',      cmd = 'python ~/claude/tools/claude_usage.py watch' },
+    { id = 'codex',      label = 'Codex CLI',          cmd = 'cd ~/claude && codex' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
   }
@@ -50,8 +50,8 @@ end
 -- │ yazi │     Claude Code        │ Gemini   │
 -- │      │                        │  CLI     │
 -- ├──────┼────────────────────────┼──────────┤
--- │lazy  │   Obsidian Tasks       │ Claude   │
--- │ git  │                        │ Usage    │
+-- │lazy  │   Obsidian Tasks       │ Codex    │
+-- │ git  │                        │  CLI     │
 -- └──────┴────────────────────────┴──────────┘
 wezterm.on('gui-startup', function(cmd)
   local tab, pane, window = mux.spawn_window(cmd or {})
@@ -81,7 +81,7 @@ wezterm.on('gui-startup', function(cmd)
     size = 0.4,
   }
 
-  -- 5) 右を上下に分割（上:Gemini CLI、下:Claude Usage Monitor）
+  -- 5) 右を上下に分割（上:Codex CLI、下:Gemini CLI）
   local right_bottom = right_pane:split {
     direction = 'Bottom',
     size = 0.35,
@@ -94,14 +94,14 @@ wezterm.on('gui-startup', function(cmd)
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
     middle_pane:send_text('claudecode\n')
     middle_bottom:send_text('python C:\\claude\\tools\\task.py watch\n')
-    right_pane:send_text('cd C:\\claude; gemini\n')
-    right_bottom:send_text('python C:\\claude\\tools\\claude_usage.py watch\n')
+    right_pane:send_text('cd C:\\claude; codex\n')
+    right_bottom:send_text('cd C:\\claude; gemini\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
     middle_bottom:send_text('python ~/claude/tools/task.py watch\n')
-    right_pane:send_text('cd ~/claude && gemini\n')
-    right_bottom:send_text('python ~/claude/tools/claude_usage.py watch\n')
+    right_pane:send_text('cd ~/claude && codex\n')
+    right_bottom:send_text('cd ~/claude && gemini\n')
   end
 end)
 
