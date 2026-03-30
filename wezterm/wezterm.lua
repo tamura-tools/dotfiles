@@ -10,8 +10,8 @@ local is_windows = wezterm.target_triple:find('windows') ~= nil
 local launcher_apps
 if is_windows then
   launcher_apps = {
-    { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = $null; claudecode' },
-    { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claudecode' },
+    { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = $null; claude' },
+    { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
     { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python C:\\claude\\tools\\task.py watch' },
@@ -92,7 +92,7 @@ wezterm.on('gui-startup', function(cmd)
 
   if is_windows then
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
-    middle_pane:send_text('claudecode\n')
+    middle_pane:send_text('claude\n')
     middle_bottom:send_text('python C:\\claude\\tools\\task.py watch\n')
     right_pane:send_text('cd C:\\claude; codex\n')
     right_bottom:send_text('cd C:\\claude; gemini\n')
