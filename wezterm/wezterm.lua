@@ -25,7 +25,7 @@ else
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
-    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python ~/claude/tools/task.py watch' },
+    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python3 ~/claude/tools/task.py watch' },
     { id = 'codex',      label = 'Codex CLI',          cmd = 'cd ~/claude && codex' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
@@ -99,7 +99,7 @@ wezterm.on('gui-startup', function(cmd)
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
-    middle_bottom:send_text('python ~/claude/tools/task.py watch\n')
+    middle_bottom:send_text('python3 ~/claude/tools/task.py watch\n')
     right_pane:send_text('cd ~/claude && codex\n')
     right_bottom:send_text('cd ~/claude && gemini\n')
   end
@@ -235,7 +235,7 @@ local dashboard_cmd
 if is_windows then
   dashboard_cmd = 'python C:\\claude\\tools\\task.py watch\r\n'
 else
-  dashboard_cmd = 'python ~/claude/tools/task.py watch\r\n'
+  dashboard_cmd = 'python3 ~/claude/tools/task.py watch\r\n'
 end
 
 -- モデル指定解除
@@ -442,8 +442,9 @@ config.keys = {
   { key = 'g', mods = 'CTRL|SHIFT', action = act.SendString('cd ~/dotfiles; lazygit\r\n') },
   -- Quick launch: Sangha Dashboard (Ctrl+Shift+S)
   { key = 's', mods = 'CTRL|SHIFT', action = act.SendString(dashboard_cmd) },
-  -- Theme picker: カラースキーム一時切り替え (Ctrl+Shift+F1)
-  { key = 'F1', mods = 'CTRL|SHIFT',
+  -- Theme picker: カラースキーム一時切り替え
+  -- Win: Ctrl+Shift+F1 / Mac: Cmd+Shift+T (macOS が F1〜F4 を奪うため)
+  { key = is_windows and 'F1' or 't', mods = is_windows and 'CTRL|SHIFT' or 'CMD|SHIFT',
     action = act.InputSelector {
       title = 'Color Scheme (session only)',
       choices = theme_choices,
@@ -474,8 +475,9 @@ config.keys = {
       end),
     },
   },
-  -- Background picker: 壁紙の明るさ一時変更 (Ctrl+Shift+F2)
-  { key = 'F2', mods = 'CTRL|SHIFT',
+  -- Background picker: 壁紙の明るさ一時変更
+  -- Win: Ctrl+Shift+F2 / Mac: Cmd+Shift+B
+  { key = is_windows and 'F2' or 'b', mods = is_windows and 'CTRL|SHIFT' or 'CMD|SHIFT',
     action = act.InputSelector {
       title = 'Wallpaper Brightness (session only)',
       choices = brightness_choices,
@@ -497,9 +499,10 @@ config.keys = {
       end),
     },
   },
-  -- Wallpaper picker: 壁紙画像の一時切り替え (Ctrl+Shift+F3)
+  -- Wallpaper picker: 壁紙画像の一時切り替え
   -- メニューを開くたびにフォルダをスキャンする
-  { key = 'F3', mods = 'CTRL|SHIFT',
+  -- Win: Ctrl+Shift+F3 / Mac: Cmd+Shift+I (Image)
+  { key = is_windows and 'F3' or 'i', mods = is_windows and 'CTRL|SHIFT' or 'CMD|SHIFT',
     action = wezterm.action_callback(function(win, pane)
       local choices = {
         { id = '_none', label = 'No wallpaper' },
@@ -538,8 +541,9 @@ config.keys = {
       )
     end),
   },
-  -- Profile switcher: テーマ+壁紙セット切り替え (Ctrl+Shift+F4)
-  { key = 'F4', mods = 'CTRL|SHIFT',
+  -- Profile switcher: テーマ+壁紙セット切り替え
+  -- Win: Ctrl+Shift+F4 / Mac: Cmd+Shift+P
+  { key = is_windows and 'F4' or 'p', mods = is_windows and 'CTRL|SHIFT' or 'CMD|SHIFT',
     action = act.InputSelector {
       title = '  Profile (テーマ+壁紙セット)',
       choices = (function()
