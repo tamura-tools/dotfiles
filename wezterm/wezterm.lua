@@ -163,32 +163,61 @@ config.color_schemes = {
       '#C0D0E0',  -- bright white: クロームシルバー
     },
   },
-  ['Claude Light'] = {
-    foreground = '#3C3836',
-    background = '#F5EFE6',
-    cursor_bg = '#5C534A',
-    cursor_fg = '#F5EFE6',
-    selection_bg = '#D4C9B8',
-    selection_fg = '#3C3836',
+  ['Holo HUD'] = {
+    foreground = '#BEEFFF',       -- ホログラム投影光（淡いアイスシアン）
+    background = '#020814',       -- 深宇宙ネイビー（スケスケで背景透過推奨）
+    cursor_bg = '#00E5FF',        -- ピュアシアンのHUDカーソル
+    cursor_fg = '#020814',
+    selection_bg = '#0D7FB8',     -- エレクトリックブルー選択
+    selection_fg = '#EAF8FF',
     ansi = {
-      '#3C3836',  -- black
-      '#C35B4E',  -- red
-      '#6A8F4E',  -- green
-      '#B5873A',  -- yellow
-      '#5079A5',  -- blue
-      '#8E6BA1',  -- magenta
-      '#5B9A8B',  -- cyan
-      '#D5CFC4',  -- white
+      '#0A1628',  -- black: HUDフレーム深部
+      '#FF2D5F',  -- red: アラートレッド（警告ピクト）
+      '#00E5A0',  -- green: ステータスOKグロー
+      '#FFB84D',  -- yellow: 注意アンバー（HUD警告色）
+      '#00AEEF',  -- blue: エレクトリックシアンブルー
+      '#7B68EE',  -- magenta: ホログラムバイオレット
+      '#00E5FF',  -- cyan: 主力のピュアシアン
+      '#C5E8F5',  -- white: スクリーン反射光
     },
     brights = {
-      '#5C534A',  -- bright black
-      '#D96D5E',  -- bright red
-      '#7DA85E',  -- bright green
+      '#1E3A5F',  -- bright black: 艦橋スチールブルー
+      '#FF4D7A',  -- bright red: ホットピンク警報
+      '#5CFFCC',  -- bright green: ミントグロー
+      '#FFDB5C',  -- bright yellow: ゴールド
+      '#33D1FF',  -- bright blue: スカイネオンシアン
+      '#A594F9',  -- bright magenta: ラベンダーオーラ
+      '#66F5FF',  -- bright cyan: プラズマシアン
+      '#EAF8FF',  -- bright white: ホログラムホワイト
+    },
+  },
+  ['Claude Light'] = {
+    -- claude.ai の実UIに合わせたパレット
+    foreground = '#3D3D3A',       -- Claude 本文テキスト（暖かいダーク）
+    background = '#FAF9F5',       -- Claude アイボリー（メイン背景）
+    cursor_bg = '#D97757',        -- Claude サンセットコーラル（ブランドオレンジ）
+    cursor_fg = '#FAF9F5',
+    selection_bg = '#E8E5DC',     -- パネル色相当
+    selection_fg = '#1F1E1D',
+    ansi = {
+      '#1F1E1D',  -- black: Claude ニアブラック
+      '#C73E3E',  -- red: 落ち着いた朱
+      '#6B8E4E',  -- green: セージ
+      '#B5873A',  -- yellow: 温かみのあるオーカー
+      '#5B7A9E',  -- blue: muted スレートブルー
+      '#9B5E8B',  -- magenta: 控えめプラム
+      '#3B8580',  -- cyan: muted ティール
+      '#5C5A52',  -- white: 読めるウォームグレー（背景と被らない）
+    },
+    brights = {
+      '#87847C',  -- bright black: ミッドグレー
+      '#D97757',  -- bright red: Claude サンセットコーラル
+      '#7FA85E',  -- bright green
       '#C9974A',  -- bright yellow
       '#6090B8',  -- bright blue
-      '#A37DB5',  -- bright magenta
-      '#6DB3A2',  -- bright cyan
-      '#F5EFE6',  -- bright white
+      '#B070A0',  -- bright magenta
+      '#5BA29B',  -- bright cyan
+      '#1F1E1D',  -- bright white: 最もコントラスト強い色（アイボリー上で可読）
     },
   },
 }
@@ -287,6 +316,14 @@ local profiles = {
     brightness = 0.12,
     window_background_opacity = nil,
   },
+  {
+    id = 'holo-hud',
+    label = '🛰 Holo HUD — ホログラム司令艦橋',
+    color_scheme = 'Holo HUD',
+    wallpaper = false,
+    brightness = nil,
+    window_background_opacity = 0.55,  -- スケスケ（HUDが宙に浮く感じ）
+  },
 }
 
 -- プロファイルの壁紙パスを解決
@@ -365,6 +402,7 @@ local color_schemes = {
   -- SF / Cyberpunk
   'SF Terminal',
   'Neuromancer',
+  'Holo HUD',
   -- Light
   'Claude Light',
   'Tokyo Night Day',
