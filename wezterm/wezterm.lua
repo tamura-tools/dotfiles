@@ -46,11 +46,20 @@ end
 
 -- 6ペインレイアウトで最大化起動
 -- 比率 = 左1 : 中5 : 右2
+-- Windows:
+-- ┌──────┬────────────────────────┬──────────────┐
+-- │ yazi │     Claude Code        │ Claude Code  │
+-- │      │                        │   (会社)     │
+-- ├──────┼────────────────────────┼──────────────┤
+-- │lazy  │   Obsidian Tasks       │  Codex CLI   │
+-- │ git  │                        │              │
+-- └──────┴────────────────────────┴──────────────┘
+-- Other OS:
 -- ┌──────┬────────────────────────┬──────────┐
--- │ yazi │     Claude Code        │ Gemini   │
+-- │ yazi │     Claude Code        │ Codex    │
 -- │      │                        │  CLI     │
 -- ├──────┼────────────────────────┼──────────┤
--- │lazy  │   Obsidian Tasks       │ Codex    │
+-- │lazy  │   Obsidian Tasks       │ Gemini   │
 -- │ git  │                        │  CLI     │
 -- └──────┴────────────────────────┴──────────┘
 wezterm.on('gui-startup', function(cmd)
@@ -81,7 +90,9 @@ wezterm.on('gui-startup', function(cmd)
     size = 0.4,
   }
 
-  -- 5) 右を上下に分割（上:Codex CLI、下:Gemini CLI）
+  -- 5) 右を上下に分割
+  --    Windows: 上=Claude Code(会社) / 下=Codex CLI
+  --    Other:   上=Codex CLI / 下=Gemini CLI
   local right_bottom = right_pane:split {
     direction = 'Bottom',
     size = 0.35,
@@ -94,8 +105,8 @@ wezterm.on('gui-startup', function(cmd)
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
     middle_pane:send_text('claude\n')
     middle_bottom:send_text('python C:\\claude\\tools\\task.py watch\n')
-    right_pane:send_text('cd C:\\claude; codex\n')
-    right_bottom:send_text('cd C:\\claude; gemini\n')
+    right_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude\n')
+    right_bottom:send_text('cd C:\\claude; codex\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
