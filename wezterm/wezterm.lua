@@ -14,7 +14,7 @@ if is_windows then
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
-    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python C:\\claude\\tools\\task.py watch' },
+    { id = 'dashboard',  label = 'Todoist',            cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1' },
     { id = 'codex',      label = 'Codex CLI',          cmd = 'cd C:\\claude; codex' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'PowerShell',        cmd = '' },
@@ -25,7 +25,7 @@ else
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
-    { id = 'dashboard',  label = 'Obsidian Tasks',     cmd = 'python3 ~/claude/tools/task.py watch' },
+    { id = 'dashboard',  label = 'Todoist',            cmd = 'bash ~/dotfiles/wezterm/todoist.sh' },
     { id = 'codex',      label = 'Codex CLI',          cmd = 'cd ~/claude && codex' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
@@ -104,13 +104,13 @@ wezterm.on('gui-startup', function(cmd)
   if is_windows then
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
     middle_pane:send_text('claude\n')
-    middle_bottom:send_text('python C:\\claude\\tools\\task.py watch\n')
+    middle_bottom:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
     right_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude\n')
     right_bottom:send_text('cd C:\\claude; codex\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
-    middle_bottom:send_text('python3 ~/claude/tools/task.py watch\n')
+    middle_bottom:send_text('bash ~/dotfiles/wezterm/todoist.sh\n')
     right_pane:send_text('cd ~/claude && codex\n')
     right_bottom:send_text('cd ~/claude && gemini\n')
   end
@@ -273,9 +273,9 @@ end
 -- ダッシュボード起動コマンド
 local dashboard_cmd
 if is_windows then
-  dashboard_cmd = 'python C:\\claude\\tools\\task.py watch\r\n'
+  dashboard_cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1\r\n'
 else
-  dashboard_cmd = 'python3 ~/claude/tools/task.py watch\r\n'
+  dashboard_cmd = 'bash ~/dotfiles/wezterm/todoist.sh\r\n'
 end
 
 -- モデル指定解除
