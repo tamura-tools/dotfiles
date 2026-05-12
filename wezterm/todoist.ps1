@@ -345,8 +345,8 @@ function Show-Dashboard {
     if ($null -eq $taskList) { $taskList = New-TaskList }
     $taskCount = $taskList.Count
     $completed = [int]$script:CompletedCount
-    $shownCompleted = if ($taskCount -gt 0) { 0 } else { $completed }
-    $allTotal = if ($taskCount -gt 0) { $taskCount } else { $completed }
+    $shownCompleted = $completed
+    $allTotal = $taskCount + $completed
     $now       = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
     $timeStr   = $now.ToString("HH:mm:ss")
     $dateStr   = $now.ToString("yyyy-MM-dd (ddd)")
