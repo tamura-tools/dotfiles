@@ -318,11 +318,28 @@ function Update-TodoistData {
         $script:TodayTasks = New-TaskList
     }
 
-    $script:CompletedCount = Get-CompletedCount
+    # Todoist API の完了履歴は繰り返しタスク（close で次回日付に bump されるもの）を
+    # 載せないため、ダッシュボードで close した瞬間に open list から消えるのに API の
+    # 完了カウントには加算されず "10 → 9 done" のような総数縮みが起きる。
+    # API 側と actions.jsonl の今日分 complete を taskId で union して数える。
+    $ids = @{}
+    $anonymousCount = 0
+
+    foreach ($id in (Get-ApiCompletedTaskIds)) {
+        if ($id) { $ids[$id] = $true }
+    }
+
+    $localResult = Get-LocalCompletedTaskIdsToday
+    foreach ($id in $localResult.Ids) {
+        if ($id) { $ids[$id] = $true }
+    }
+    $anonymousCount += $localResult.AnonymousCount
+
+    $script:CompletedCount = $ids.Count + $anonymousCount
 }
 
-function Get-CompletedCount {
-    if (-not $API_KEY) { return 0 }
+function Get-ApiCompletedTaskIds {
+    if (-not $API_KEY) { return @() }
     try {
         $nowTz = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
         $since = $nowTz.Date.ToString("yyyy-MM-ddTHH:mm:ss")
@@ -330,9 +347,54 @@ function Get-CompletedCount {
         $resp = Invoke-Todoist -Method Get -Path "/tasks/completed/by_completion_date?since=$since&until=$until"
         $items = New-TaskList
         Add-ResponseItems -Target $items -Response $resp -PropertyName "items"
-        return $items.Count
+        $ids = New-TaskList
+        foreach ($item in $items) {
+            if ($null -eq $item) { continue }
+            $idProp = $item.PSObject.Properties["task_id"]
+            if (-not $idProp) { $idProp = $item.PSObject.Properties["taskId"] }
+            if (-not $idProp) { $idProp = $item.PSObject.Properties["id"] }
+            if ($idProp) {
+                $val = [string]$idProp.Value
+                if ($val) { $ids.Add($val) }
+            }
+        }
+        return $ids.ToArray()
     } catch {
-        return 0
+        return @()
+    }
+}
+
+function Get-LocalCompletedTaskIdsToday {
+    $result = [pscustomobject]@{ Ids = @(); AnonymousCount = 0 }
+    if (-not (Test-Path -LiteralPath $LOG_PATH)) { return $result }
+    try {
+        $todayStr = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).ToString("yyyy-MM-dd")
+        $seenIds = @{}
+        $anonymousCount = 0
+        $lines = @(Get-Content -LiteralPath $LOG_PATH -Encoding UTF8)
+        foreach ($line in $lines) {
+            if (-not $line -or -not $line.Trim()) { continue }
+            try {
+                $entry = $line | ConvertFrom-Json
+            } catch {
+                continue
+            }
+            if ([string]$entry.action -ne "complete") { continue }
+            $ts = [string]$entry.timestamp
+            if ($ts.Length -lt 10) { continue }
+            if ($ts.Substring(0, 10) -ne $todayStr) { continue }
+            $tid = [string]$entry.taskId
+            if ($tid) {
+                if (-not $seenIds.ContainsKey($tid)) { $seenIds[$tid] = $true }
+            } else {
+                $anonymousCount++
+            }
+        }
+        $result.Ids = @($seenIds.Keys)
+        $result.AnonymousCount = $anonymousCount
+        return $result
+    } catch {
+        return $result
     }
 }
 
