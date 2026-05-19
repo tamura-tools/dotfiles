@@ -249,6 +249,39 @@ config.font_size = 12
 config.initial_cols = 200
 config.initial_rows = 50
 
+-- 壁紙ファイル/ディレクトリ定義 (OS別)
+-- Mac は wallpapers/mac/ サブフォルダを使う（Win 側との分離・永続化対象）
+local wallpaper_file
+local wallpaper_dir
+if is_windows then
+  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper_win.jpg'
+  wallpaper_dir = wezterm.home_dir .. '\\dotfiles\\wezterm\\wallpapers\\'
+else
+  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper.jpg'
+  wallpaper_dir = wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/mac/'
+end
+
+-- 壁紙状態の永続化 (Macのみ運用)
+-- 状態ファイル: ~/.config/wezterm/wallpaper_state
+-- 内容: 1行に壁紙パス、または '_none' = 壁紙なし、未存在/空 = デフォルトにフォールバック
+local wallpaper_state_path = wezterm.config_dir .. '/wallpaper_state'
+
+local function read_wallpaper_state()
+  local f = io.open(wallpaper_state_path, 'r')
+  if not f then return nil end
+  local line = f:read('*l')
+  f:close()
+  if line and line ~= '' then return line end
+  return nil
+end
+
+local function write_wallpaper_state(path)
+  local f = io.open(wallpaper_state_path, 'w')
+  if not f then return end
+  f:write(path or '')
+  f:close()
+end
+
 -- OS別設定
 if is_windows then
   config.default_prog = { 'powershell.exe' }
@@ -266,17 +299,23 @@ if is_windows then
   }
 else
   config.default_cwd = wezterm.home_dir .. '/claude'
-  config.background = {
-    {
-      source = { File = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper.jpg' },
-      hsb = { brightness = 0.1 },
-      opacity = 0.9,
-      horizontal_align = 'Center',
-      vertical_align = 'Middle',
-      repeat_x = 'NoRepeat',
-      repeat_y = 'NoRepeat',
-    },
-  }
+  -- 状態ファイルから前回の壁紙を復元（無ければ wallpaper_file がデフォルト）
+  local saved_wp = read_wallpaper_state()
+  if saved_wp == '_none' then
+    config.background = {}
+  else
+    config.background = {
+      {
+        source = { File = saved_wp or wallpaper_file },
+        hsb = { brightness = 0.1 },
+        opacity = 0.9,
+        horizontal_align = 'Center',
+        vertical_align = 'Middle',
+        repeat_x = 'NoRepeat',
+        repeat_y = 'NoRepeat',
+      },
+    }
+  end
 end
 
 -- ダッシュボード起動コマンド
@@ -354,7 +393,7 @@ local function resolve_wallpaper(profile)
     if is_windows then
       return wezterm.home_dir .. '\\dotfiles\\wezterm\\wallpapers\\' .. profile.wallpaper
     else
-      return wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/' .. profile.wallpaper
+      return wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/mac/' .. profile.wallpaper
     end
   end
   return nil  -- 壁紙なし
@@ -456,20 +495,7 @@ local brightness_choices = {
   { id = '_reset', label = 'Reset to default' },
 }
 
-local wallpaper_file
-if is_windows then
-  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper_win.jpg'
-else
-  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper.jpg'
-end
-
 -- wallpapers/ フォルダ内の画像リスト（設定リロード時にスキャン）
-local wallpaper_dir
-if is_windows then
-  wallpaper_dir = wezterm.home_dir .. '\\dotfiles\\wezterm\\wallpapers\\'
-else
-  wallpaper_dir = wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/'
-end
 local wallpaper_choices = {
   { id = '_none', label = 'No wallpaper' },
   { id = '_reset', label = 'Reset to default' },
@@ -557,9 +583,9 @@ config.keys = {
       end),
     },
   },
-  -- Wallpaper picker: 壁紙画像の一時切り替え
+  -- Wallpaper picker: 壁紙画像の切り替え
   -- メニューを開くたびにフォルダをスキャンする
-  -- Win: Ctrl+Shift+F3 / Mac: Cmd+Shift+I (Image)
+  -- Win: Ctrl+Shift+F3 (セッション限り) / Mac: Cmd+Shift+I (状態ファイルに保存して次回起動時も復元)
   { key = is_windows and 'F3' or 'i', mods = is_windows and 'CTRL|SHIFT' or 'CMD|SHIFT',
     action = wezterm.action_callback(function(win, pane)
       local choices = {
@@ -576,23 +602,37 @@ config.keys = {
       end)
       win:perform_action(
         act.InputSelector {
-          title = 'Wallpaper Image (session only)',
+          title = is_windows and 'Wallpaper Image (session only)' or 'Wallpaper Image (persisted)',
           choices = choices,
           action = wezterm.action_callback(function(win2, _, id)
             if not id then return end
-            local o = win2:get_config_overrides() or {}
-            if id == '_reset' then
-              o.background = nil
-            elseif id == '_none' then
-              o.background = {}
-            else
-              local b = 0.1
-              if o.background and o.background[1] and o.background[1].hsb then
-                b = o.background[1].hsb.brightness
+            if is_windows then
+              -- Win: 従来通り override で一時変更
+              local o = win2:get_config_overrides() or {}
+              if id == '_reset' then
+                o.background = nil
+              elseif id == '_none' then
+                o.background = {}
+              else
+                local b = 0.1
+                if o.background and o.background[1] and o.background[1].hsb then
+                  b = o.background[1].hsb.brightness
+                end
+                o.background = { { source = { File = id }, hsb = { brightness = b }, opacity = 0.9, horizontal_align = 'Center', vertical_align = 'Middle', repeat_x = 'NoRepeat', repeat_y = 'NoRepeat' } }
               end
-              o.background = { { source = { File = id }, hsb = { brightness = b }, opacity = 0.9, horizontal_align = 'Center', vertical_align = 'Middle', repeat_x = 'NoRepeat', repeat_y = 'NoRepeat' } }
+              win2:set_config_overrides(o)
+            else
+              -- Mac: 状態ファイルに保存 → 壁紙系overrideを解除 → reload で即反映
+              if id == '_reset' then
+                write_wallpaper_state('')
+              else
+                write_wallpaper_state(id)
+              end
+              local o = win2:get_config_overrides() or {}
+              o.background = nil
+              win2:set_config_overrides(o)
+              wezterm.reload_configuration()
             end
-            win2:set_config_overrides(o)
           end),
         },
         pane
