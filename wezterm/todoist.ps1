@@ -318,10 +318,12 @@ function Update-TodoistData {
         $script:TodayTasks = New-TaskList
     }
 
-    # Todoist API の完了履歴は繰り返しタスク（close で次回日付に bump されるもの）を
-    # 載せないため、ダッシュボードで close した瞬間に open list から消えるのに API の
-    # 完了カウントには加算されず "10 → 9 done" のような総数縮みが起きる。
-    # API 側と actions.jsonl の今日分 complete を taskId で union して数える。
+    # Todoist の /tasks/completed/by_completion_date は繰り返しタスクの完了を
+    # 載せないため、アプリ/ブラウザで繰り返しタスクを close しても今日の done に
+    # 反映されない（"12 完了したのに 2/2 done" のような乖離が起きる）。
+    # /api/v1/activities (event_type=completed) は繰り返しタスクも含むので、
+    # こちらを主軸にし、actions.jsonl の今日分 complete と taskId で union する。
+    # （activities が失敗したときは by_completion_date にフォールバック）
     $ids = @{}
     $anonymousCount = 0
 
@@ -340,27 +342,67 @@ function Update-TodoistData {
 
 function Get-ApiCompletedTaskIds {
     if (-not $API_KEY) { return @() }
+    $tzInfo = [System.TimeZoneInfo]::FindSystemTimeZoneById($TZ)
+    $todayJst = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).Date
+
+    # Primary: /api/v1/activities (includes recurring task closes)
     try {
-        $nowTz = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
-        $since = $nowTz.Date.ToString("yyyy-MM-ddTHH:mm:ss")
-        $until = $nowTz.Date.AddDays(1).AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss")
-        $resp = Invoke-Todoist -Method Get -Path "/tasks/completed/by_completion_date?since=$since&until=$until"
-        $items = New-TaskList
-        Add-ResponseItems -Target $items -Response $resp -PropertyName "items"
         $ids = New-TaskList
-        foreach ($item in $items) {
-            if ($null -eq $item) { continue }
-            $idProp = $item.PSObject.Properties["task_id"]
-            if (-not $idProp) { $idProp = $item.PSObject.Properties["taskId"] }
-            if (-not $idProp) { $idProp = $item.PSObject.Properties["id"] }
-            if ($idProp) {
-                $val = [string]$idProp.Value
-                if ($val) { $ids.Add($val) }
+        $cursor = $null
+        $pages = 0
+        $done = $false
+        while (-not $done) {
+            $path = "/activities?event_type=completed&limit=100"
+            if ($cursor) { $path += "&cursor=" + [Uri]::EscapeDataString($cursor) }
+            $resp = Invoke-Todoist -Method Get -Path $path
+            $events = New-TaskList
+            Add-ResponseItems -Target $events -Response $resp -PropertyName "results"
+            if ($events.Count -eq 0) { break }
+
+            $oldestJst = $todayJst
+            foreach ($e in $events) {
+                if (-not $e -or -not $e.event_date) { continue }
+                $utc = [DateTimeOffset]::Parse([string]$e.event_date).UtcDateTime
+                $jst = [System.TimeZoneInfo]::ConvertTimeFromUtc($utc, $tzInfo).Date
+                if ($jst -eq $todayJst) {
+                    $oid = [string]$e.object_id
+                    if ($oid) { $ids.Add($oid) }
+                }
+                if ($jst -lt $oldestJst) { $oldestJst = $jst }
             }
+
+            $cursor = $null
+            if ($resp.PSObject.Properties["next_cursor"]) { $cursor = [string]$resp.next_cursor }
+            $pages++
+            if ($oldestJst -lt $todayJst) { $done = $true }
+            elseif (-not $cursor) { $done = $true }
+            elseif ($pages -ge 5) { $done = $true }
         }
         return $ids.ToArray()
     } catch {
-        return @()
+        # Fallback: by_completion_date (繰り返しタスクは含まれない)
+        try {
+            $nowTz = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
+            $since = $nowTz.Date.ToString("yyyy-MM-ddTHH:mm:ss")
+            $until = $nowTz.Date.AddDays(1).AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss")
+            $resp = Invoke-Todoist -Method Get -Path "/tasks/completed/by_completion_date?since=$since&until=$until"
+            $items = New-TaskList
+            Add-ResponseItems -Target $items -Response $resp -PropertyName "items"
+            $ids = New-TaskList
+            foreach ($item in $items) {
+                if ($null -eq $item) { continue }
+                $idProp = $item.PSObject.Properties["task_id"]
+                if (-not $idProp) { $idProp = $item.PSObject.Properties["taskId"] }
+                if (-not $idProp) { $idProp = $item.PSObject.Properties["id"] }
+                if ($idProp) {
+                    $val = [string]$idProp.Value
+                    if ($val) { $ids.Add($val) }
+                }
+            }
+            return $ids.ToArray()
+        } catch {
+            return @()
+        }
     }
 }
 
