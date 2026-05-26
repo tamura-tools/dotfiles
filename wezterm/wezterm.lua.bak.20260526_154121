@@ -21,8 +21,6 @@ if is_windows then
   launcher_apps = {
     { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = $null; claude' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus' },
-    { id = 'claude-clean', label = 'Claude Code (Clean)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
-    { id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
     { id = 'dashboard',  label = 'Todoist',            cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1' },
@@ -34,8 +32,6 @@ else
   launcher_apps = {
     { id = 'claude',     label = 'Claude Code',       cmd = 'unset CLAUDE_CONFIG_DIR; claude' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude --model opus' },
-    { id = 'claude-clean', label = 'Claude Code (Clean)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
-    { id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
     { id = 'dashboard',  label = 'Todoist',            cmd = 'bash ~/dotfiles/wezterm/todoist.sh' },

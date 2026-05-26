@@ -50,8 +50,6 @@ WezTerm 起動時に6ペインが自動展開される。
 |--------|-------------|
 | Claude Code | `claude`（個人アカウント） |
 | Claude Code (会社) | `CLAUDE_CONFIG_DIR=~/.claude-work claude --model opus` |
-| Claude Code (Clean) | `CLAUDE_CONFIG_DIR=~/.claude-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user` |
-| Claude Code (会社 Clean) | `CLAUDE_CONFIG_DIR=~/.claude-work-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user` |
 | Gemini CLI | `cd ~/claude && gemini` |
 | lazygit | `cd ~/dotfiles && lazygit` |
 | Obsidian Tasks | `python3 ~/claude/tools/task.py watch`（Win は `python`） |
