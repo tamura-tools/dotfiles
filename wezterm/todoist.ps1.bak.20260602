@@ -14,12 +14,6 @@ $INTERVAL = 60
 $TZ       = "Tokyo Standard Time"
 $THM      = "tokyo-night"
 
-# 表示拡張の設定
-$UPCOMING_DAYS = 3      # 「今後の予定」に含める先の日数（今日の翌日〜N日後）
-$ACTION_CAP    = 10     # 期限切れ＋今日（アクション対象）の表示上限
-$MAX_UPCOMING  = 6      # 「今後の予定」表示上限
-$MAX_COMPLETED = 6      # 「今日の完了」表示上限
-
 if ($env:TODOIST_DASHBOARD_LOG_DIR) {
     $LOG_DIR = $env:TODOIST_DASHBOARD_LOG_DIR
 } elseif ($env:LOCALAPPDATA) {
@@ -293,148 +287,35 @@ function Get-TodoistDueDate {
     return $date
 }
 
-function Update-ProjectMap {
-    # project_id -> プロジェクト名 のマップを作る（プロジェクト別表示用）
-    $script:ProjectMap = @{}
-    if (-not $API_KEY) { return }
-    try {
-        $resp = Invoke-Todoist -Method Get -Path "/projects"
-        $projects = New-TaskList
-        Add-ResponseItems -Target $projects -Response $resp -PropertyName "results"
-        foreach ($p in $projects) {
-            if ($null -eq $p) { continue }
-            $projId = [string]$p.id
-            if ($projId) { $script:ProjectMap[$projId] = [string]$p.name }
-        }
-    } catch {
-        $script:ProjectMap = @{}
-    }
-}
-
-function Get-ProjectName {
-    param([string] $Id)
-    if (-not $Id) { return "" }
-    if ($script:ProjectMap -and $script:ProjectMap.ContainsKey($Id)) {
-        return $script:ProjectMap[$Id]
-    }
-    return ""
-}
-
-function Get-CompletedTasksToday {
-    # 今日完了したタスクを「内容付き」で返す（表示専用）。
-    # by_completion_date は content を含むのでこれを主軸にし、
-    # ローカルログ（このダッシュボードで close した分）の content を union する。
-    $list = New-TaskList
-    if (-not $API_KEY) { return $list }
-    $seen = @{}
-
-    try {
-        $nowTz = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
-        $since = $nowTz.Date.ToString("yyyy-MM-ddTHH:mm:ss")
-        $until = $nowTz.Date.AddDays(1).AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss")
-        $resp = Invoke-Todoist -Method Get -Path "/tasks/completed/by_completion_date?since=$since&until=$until"
-        $items = New-TaskList
-        Add-ResponseItems -Target $items -Response $resp -PropertyName "items"
-        if ($items.Count -eq 0) {
-            Add-ResponseItems -Target $items -Response $resp -PropertyName "results"
-        }
-        foreach ($item in $items) {
-            if ($null -eq $item) { continue }
-            $content = [string]$item.content
-            if (-not $content) { continue }
-            $tid = [string]$item.task_id
-            if (-not $tid) { $tid = [string]$item.id }
-            $key = if ($tid) { "id:$tid" } else { "c:$content" }
-            if ($seen.ContainsKey($key)) { continue }
-            $seen[$key] = $true
-            $list.Add([pscustomobject]@{ content = $content })
-        }
-    } catch { }
-
-    try {
-        if (Test-Path -LiteralPath $LOG_PATH) {
-            $todayStr = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).ToString("yyyy-MM-dd")
-            $lines = @(Get-Content -LiteralPath $LOG_PATH -Encoding UTF8)
-            foreach ($line in $lines) {
-                if (-not $line -or -not $line.Trim()) { continue }
-                try { $entry = $line | ConvertFrom-Json } catch { continue }
-                if ([string]$entry.action -ne "complete") { continue }
-                $ts = [string]$entry.timestamp
-                if ($ts.Length -lt 10 -or $ts.Substring(0, 10) -ne $todayStr) { continue }
-                $content = [string]$entry.content
-                if (-not $content) { continue }
-                $tid = [string]$entry.taskId
-                $key = if ($tid) { "id:$tid" } else { "c:$content" }
-                if ($seen.ContainsKey($key)) { continue }
-                $seen[$key] = $true
-                $list.Add([pscustomobject]@{ content = $content })
-            }
-        }
-    } catch { }
-
-    return $list
-}
-
 function Update-TodoistData {
-    # アクション対象（期限切れ→今日 の順、番号付き）
-    $script:TodayTasks     = New-TaskList
-    # 表示専用
-    $script:UpcomingTasks  = New-TaskList
-    $script:CompletedTasks = New-TaskList
+    $script:TodayTasks = New-TaskList
     $script:CompletedCount = 0
     if (-not $API_KEY) { return }
 
-    Update-ProjectMap
-
     try {
         $resp = Invoke-Todoist -Method Get -Path "/tasks"
-        $today = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).Date
-        $todayStr = $today.ToString("yyyy-MM-dd")
-        $upcomingLimit = $today.AddDays($UPCOMING_DAYS).ToString("yyyy-MM-dd")
+        $todayStr = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).ToString("yyyy-MM-dd")
         $rawTasks = New-TaskList
         Add-ResponseItems -Target $rawTasks -Response $resp -PropertyName "results"
 
-        $overdue  = New-TaskList
-        $todayDue = New-TaskList
-        $upcoming = New-TaskList
+        $dueTasks = New-TaskList
         foreach ($task in $rawTasks) {
             $dueDate = Get-TodoistDueDate -Task $task
-            if (-not $dueDate) { continue }
-            $obj = [pscustomobject]@{
-                id       = [string]$task.id
-                content  = [string]$task.content
-                priority = [int]$task.priority
-                dueDate  = $dueDate
-                project  = Get-ProjectName -Id ([string]$task.project_id)
-                section  = ""
-            }
-            if ($dueDate -lt $todayStr) {
-                $obj.section = "overdue"; $overdue.Add($obj)
-            } elseif ($dueDate -eq $todayStr) {
-                $obj.section = "today"; $todayDue.Add($obj)
-            } elseif ($dueDate -le $upcomingLimit) {
-                $obj.section = "upcoming"; $upcoming.Add($obj)
+            if ($dueDate -and $dueDate -le $todayStr) {
+                $dueTasks.Add([pscustomobject]@{
+                    id       = [string]$task.id
+                    content  = [string]$task.content
+                    priority = [int]$task.priority
+                    dueDate  = $dueDate
+                })
             }
         }
 
-        # アクション対象 = 期限切れ → 今日（各セクション内は優先度降順）。
-        # 表示順 = この順序、かつ番号は TodayTasks のインデックスと一致させる。
-        foreach ($t in ($overdue  | Sort-Object -Property priority -Descending)) { $script:TodayTasks.Add($t) }
-        foreach ($t in ($todayDue | Sort-Object -Property priority -Descending)) { $script:TodayTasks.Add($t) }
-        # 今後の予定 = 期日昇順 → 優先度降順
-        foreach ($t in ($upcoming | Sort-Object @{Expression={$_.dueDate}}, @{Expression={$_.priority};Descending=$true})) {
-            $script:UpcomingTasks.Add($t)
+        foreach ($task in ($dueTasks | Sort-Object -Property priority -Descending)) {
+            $script:TodayTasks.Add($task)
         }
     } catch {
-        $script:TodayTasks    = New-TaskList
-        $script:UpcomingTasks = New-TaskList
-    }
-
-    # 今日の完了一覧（内容付き、表示専用）
-    try {
-        foreach ($t in @(Get-CompletedTasksToday)) { $script:CompletedTasks.Add($t) }
-    } catch {
-        $script:CompletedTasks = New-TaskList
+        $script:TodayTasks = New-TaskList
     }
 
     # Todoist の /tasks/completed/by_completion_date は繰り返しタスクの完了を
@@ -561,65 +442,14 @@ function Get-LocalCompletedTaskIdsToday {
 
 # --- Rendering --------------------------------------------------
 
-function Write-TaskLine {
-    # タスク1行を描画する共通ヘルパー。
-    #  -Index>0 : 先頭に [番号]（アクション対象）。0 のときは表示専用扱い。
-    #  -ShowDate: 先頭に期日（MM-dd）を出す（今後の予定用）。
-    #  -Overdue : タスク名を error 色にする。
-    param(
-        [int]    $Index = 0,
-        [Parameter(Mandatory)] $Task,
-        [switch] $Overdue,
-        [switch] $ShowDate
-    )
-    $pc = $C.dim
-    $pl = "p4"
-    switch ([int]$Task.priority) {
-        4 { $pc = $C.error;   $pl = "p1" }
-        3 { $pc = $C.warning; $pl = "p2" }
-        2 { $pc = $C.cyan;    $pl = "p3" }
-    }
-
-    $name = [string]$Task.content
-    $maxName = 26
-    if ($name.Length -gt $maxName) { $name = $name.Substring(0, $maxName - 3) + "..." }
-    $pad = " " * [Math]::Max(0, $maxName - $name.Length)
-
-    if ($Index -gt 0) {
-        $lead = "$($C.dim)[" + ("{0,2}" -f $Index) + "]$R"
-    } elseif ($ShowDate) {
-        $dd = [string]$Task.dueDate
-        if ($dd.Length -ge 10) { $dd = $dd.Substring(5, 5) }
-        $lead = "$($C.dim)$dd$R"
-    } else {
-        $lead = "$($C.dim)  - $R"
-    }
-
-    $nameColor = $C.fg
-    if ($Overdue) { $nameColor = $C.error }
-
-    $proj = [string]$Task.project
-    $projTag = ""
-    if ($proj) {
-        if ($proj.Length -gt 14) { $proj = $proj.Substring(0, 13) + [char]0x2026 }
-        $projTag = "  $($C.dim)#$proj$R"
-    }
-
-    Write-Host "  $lead $nameColor$name$R$pad $pc($pl)$R$projTag"
-}
-
 function Show-Dashboard {
     Clear-Host
 
-    $actionList = $script:TodayTasks
-    if ($null -eq $actionList) { $actionList = New-TaskList }
-    $upcoming = $script:UpcomingTasks
-    if ($null -eq $upcoming) { $upcoming = New-TaskList }
-    $completedList = $script:CompletedTasks
-    if ($null -eq $completedList) { $completedList = New-TaskList }
-
-    $taskCount = $actionList.Count
+    $taskList = $script:TodayTasks
+    if ($null -eq $taskList) { $taskList = New-TaskList }
+    $taskCount = $taskList.Count
     $completed = [int]$script:CompletedCount
+    $shownCompleted = $completed
     $allTotal = $taskCount + $completed
     $now       = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
     $timeStr   = $now.ToString("HH:mm:ss")
@@ -633,71 +463,37 @@ function Show-Dashboard {
     Write-Host "  $($C.fg)  $dateStr$R"
     Write-Host ""
     Write-Host "  $SEP"
+    Write-Host ""
+    Write-Host "  $($C.cyan)${B}  Today's Tasks$R"
+    Write-Host ""
 
     if (-not $API_KEY) {
-        Write-Host ""
         Write-Host "  $($C.warning)  API not set$R"
     }
-    elseif ($taskCount -eq 0 -and $upcoming.Count -eq 0) {
-        Write-Host ""
+    elseif ($taskCount -eq 0) {
         Write-Host "  $($C.success)  All clear!$R"
     }
     else {
-        # アクション対象（期限切れ→今日）。番号は actionList のインデックスと一致。
         $idx = 0
-        $rendered = 0
-        $curSection = ""
-        foreach ($t in $actionList) {
-            if ($rendered -ge $ACTION_CAP) { break }
-            $sec = [string]$t.section
-            if ($sec -ne $curSection) {
-                $curSection = $sec
-                Write-Host ""
-                if ($sec -eq "overdue") {
-                    Write-Host "  $($C.error)${B}  期限切れ$R"
-                } else {
-                    Write-Host "  $($C.cyan)${B}  今日のタスク$R"
-                }
-            }
-            Write-TaskLine -Index ($idx + 1) -Task $t -Overdue:($sec -eq "overdue")
-            $idx++
-            $rendered++
-        }
-        if ($taskCount -gt $rendered) {
-            Write-Host "  $($C.dim)     ... +$($taskCount - $rendered) more$R"
-        }
-
-        # 今後の予定（表示専用、番号なし）
-        if ($upcoming.Count -gt 0) {
-            Write-Host ""
-            Write-Host "  $($C.accent)${B}  今後の予定$R"
-            $u = 0
-            foreach ($t in $upcoming) {
-                if ($u -ge $MAX_UPCOMING) {
-                    Write-Host "  $($C.dim)     ... +$($upcoming.Count - $MAX_UPCOMING) more$R"
-                    break
-                }
-                Write-TaskLine -Task $t -ShowDate
-                $u++
-            }
-        }
-    }
-
-    # 今日の完了一覧（表示専用）
-    if ($completedList.Count -gt 0) {
-        Write-Host ""
-        Write-Host "  $($C.success)${B}  今日の完了$R"
-        $d = 0
-        foreach ($t in $completedList) {
-            if ($d -ge $MAX_COMPLETED) {
-                Write-Host "  $($C.dim)     ... +$($completedList.Count - $MAX_COMPLETED) more$R"
+        foreach ($t in $taskList) {
+            if ($idx -ge 12) {
+                $rem = $taskCount - 12
+                Write-Host "  $($C.dim)  ... +$rem more$R"
                 break
             }
-            $name = [string]$t.content
-            if ($name.Length -gt 32) { $name = $name.Substring(0, 29) + "..." }
-            $checkChar = [char]0x2713
-            Write-Host "  $($C.success)  $checkChar$R $($C.dim)$name$R"
-            $d++
+            $pc = $C.dim
+            $pl = "p4"
+            switch ($t.priority) {
+                4 { $pc = $C.error;   $pl = "p1" }
+                3 { $pc = $C.warning; $pl = "p2" }
+                2 { $pc = $C.cyan;    $pl = "p3" }
+            }
+            $name = $t.content
+            if ($name.Length -gt 28) { $name = $name.Substring(0, 25) + "..." }
+            $pad = " " * [Math]::Max(0, 28 - $name.Length)
+            $num = "{0,2}" -f ($idx + 1)
+            Write-Host "  $($C.dim)[$num]$R $($C.fg)$name$pad$pc($pl)$R"
+            $idx++
         }
     }
 
@@ -707,13 +503,13 @@ function Show-Dashboard {
 
     $barW = 20
     $fill = 0
-    if ($allTotal -gt 0) { $fill = [Math]::Floor(($completed / $allTotal) * $barW) }
+    if ($allTotal -gt 0) { $fill = [Math]::Floor(($shownCompleted / $allTotal) * $barW) }
     $empty = $barW - $fill
     $fc = [char]0x2588
     $ec = [char]0x2591
     $fBar = "$fc" * $fill
     $eBar = "$ec" * $empty
-    Write-Host "  $($C.success)  [OK] $completed/$allTotal done$R  $($C.success)$fBar$($C.dim)$eBar$R"
+    Write-Host "  $($C.success)  [OK] $shownCompleted/$allTotal done$R  $($C.success)$fBar$($C.dim)$eBar$R"
 
     Write-Host ""
     Write-Host "  $SEP"

@@ -694,33 +694,4 @@ config.keys = {
   },
 }
 
--- ===== AI トークン残量ステータスライン =====
--- 右側に Claude(個/社) のプラン枠使用率（ccusage 近似）と
--- Codex(5h/週) の使用率を表示する。重い ccusage 算出は ai_usage.ps1 が
--- バックグラウンドに逃がすので、ここでは結果を間引いて取得するだけ。
-if is_windows then
-  local ai_status = ''
-  local ai_last = 0
-  local AI_INTERVAL = 30  -- 取得間隔（秒）
-  wezterm.on('update-status', function(window, pane)
-    local now = os.time()
-    if ai_status == '' or (now - ai_last) >= AI_INTERVAL then
-      ai_last = now
-      local ok, stdout = wezterm.run_child_process({
-        'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
-        '-File', wezterm.home_dir .. '\\dotfiles\\wezterm\\ai_usage.ps1',
-      })
-      if ok and stdout then
-        ai_status = stdout:gsub('%s+$', '')
-      end
-    end
-    if ai_status ~= '' then
-      window:set_right_status(wezterm.format {
-        { Foreground = { Color = '#7aa2f7' } },
-        { Text = ' ' .. ai_status .. ' ' },
-      })
-    end
-  end)
-end
-
 return config
