@@ -322,85 +322,34 @@ function Get-ProjectName {
 
 function Get-CompletedTasksToday {
     # 今日完了したタスクを「内容付き」で返す（表示専用）。
-    # /activities (event_type=completed) は繰り返しタスクの完了も含むのでこれを主軸にする。
-    # （by_completion_date は繰り返し完了を返さず、表示リストが done カウントと食い違う原因だった）
-    # by_completion_date はフォールバック、ローカルログ(close分)を union し、id/content で重複排除する。
+    # by_completion_date は content を含むのでこれを主軸にし、
+    # ローカルログ（このダッシュボードで close した分）の content を union する。
     $list = New-TaskList
     if (-not $API_KEY) { return $list }
     $seen = @{}
 
-    # Primary: /api/v1/activities（繰り返し完了も含む。extra_data.content あり）
-    $apiOk = $false
     try {
-        $tzInfo   = [System.TimeZoneInfo]::FindSystemTimeZoneById($TZ)
-        $todayJst = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ).Date
-        $cursor = $null
-        $pages  = 0
-        $done   = $false
-        while (-not $done) {
-            $path = "/activities?event_type=completed&limit=100"
-            if ($cursor) { $path += "&cursor=" + [Uri]::EscapeDataString($cursor) }
-            $resp = Invoke-Todoist -Method Get -Path $path
-            $events = New-TaskList
-            Add-ResponseItems -Target $events -Response $resp -PropertyName "results"
-            if ($events.Count -eq 0) { break }
-
-            $oldestJst = $todayJst
-            foreach ($e in $events) {
-                if (-not $e -or -not $e.event_date) { continue }
-                $jst = [System.TimeZoneInfo]::ConvertTimeFromUtc([DateTimeOffset]::Parse([string]$e.event_date).UtcDateTime, $tzInfo).Date
-                if ($jst -eq $todayJst) {
-                    $oid = [string]$e.object_id
-                    $content = ""
-                    if ($e.PSObject.Properties["extra_data"] -and $e.extra_data) { $content = [string]$e.extra_data.content }
-                    if ($content) {
-                        $key = if ($oid) { "id:$oid" } else { "c:$content" }
-                        if (-not $seen.ContainsKey($key)) {
-                            $seen[$key] = $true
-                            $list.Add([pscustomobject]@{ content = $content })
-                        }
-                    }
-                }
-                if ($jst -lt $oldestJst) { $oldestJst = $jst }
-            }
-
-            $cursor = $null
-            if ($resp.PSObject.Properties["next_cursor"]) { $cursor = [string]$resp.next_cursor }
-            $pages++
-            if ($oldestJst -lt $todayJst) { $done = $true }
-            elseif (-not $cursor) { $done = $true }
-            elseif ($pages -ge 5) { $done = $true }
+        $nowTz = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
+        $since = $nowTz.Date.ToString("yyyy-MM-ddTHH:mm:ss")
+        $until = $nowTz.Date.AddDays(1).AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss")
+        $resp = Invoke-Todoist -Method Get -Path "/tasks/completed/by_completion_date?since=$since&until=$until"
+        $items = New-TaskList
+        Add-ResponseItems -Target $items -Response $resp -PropertyName "items"
+        if ($items.Count -eq 0) {
+            Add-ResponseItems -Target $items -Response $resp -PropertyName "results"
         }
-        $apiOk = $true
-    } catch {
-        $apiOk = $false
-    }
-
-    # Fallback: by_completion_date（activities 取得失敗時のみ。繰り返しは含まれない）
-    if (-not $apiOk) {
-        try {
-            $nowTz = [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), $TZ)
-            $since = $nowTz.Date.ToString("yyyy-MM-ddTHH:mm:ss")
-            $until = $nowTz.Date.AddDays(1).AddSeconds(-1).ToString("yyyy-MM-ddTHH:mm:ss")
-            $resp = Invoke-Todoist -Method Get -Path "/tasks/completed/by_completion_date?since=$since&until=$until"
-            $items = New-TaskList
-            Add-ResponseItems -Target $items -Response $resp -PropertyName "items"
-            if ($items.Count -eq 0) {
-                Add-ResponseItems -Target $items -Response $resp -PropertyName "results"
-            }
-            foreach ($item in $items) {
-                if ($null -eq $item) { continue }
-                $content = [string]$item.content
-                if (-not $content) { continue }
-                $tid = [string]$item.task_id
-                if (-not $tid) { $tid = [string]$item.id }
-                $key = if ($tid) { "id:$tid" } else { "c:$content" }
-                if ($seen.ContainsKey($key)) { continue }
-                $seen[$key] = $true
-                $list.Add([pscustomobject]@{ content = $content })
-            }
-        } catch { }
-    }
+        foreach ($item in $items) {
+            if ($null -eq $item) { continue }
+            $content = [string]$item.content
+            if (-not $content) { continue }
+            $tid = [string]$item.task_id
+            if (-not $tid) { $tid = [string]$item.id }
+            $key = if ($tid) { "id:$tid" } else { "c:$content" }
+            if ($seen.ContainsKey($key)) { continue }
+            $seen[$key] = $true
+            $list.Add([pscustomobject]@{ content = $content })
+        }
+    } catch { }
 
     try {
         if (Test-Path -LiteralPath $LOG_PATH) {
