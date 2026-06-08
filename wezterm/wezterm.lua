@@ -61,11 +61,11 @@ end
 -- 比率 = 左1 : 中5 : 右2
 -- Windows:
 -- ┌──────┬────────────────────────┬──────────────┐
--- │ yazi │     Claude Code        │ Claude Code  │
--- │      │                        │   (会社)     │
+-- │ yazi │     Claude Code        │  Codex CLI   │
+-- │      │                        │              │
 -- ├──────┼────────────────────────┼──────────────┤
--- │lazy  │   Obsidian Tasks       │  Codex CLI   │
--- │ git  │                        │              │
+-- │lazy  │   Obsidian Tasks       │ Claude Code  │
+-- │ git  │                        │   (会社)     │
 -- └──────┴────────────────────────┴──────────────┘
 -- Other OS:
 -- ┌──────┬────────────────────────┬──────────┐
@@ -104,7 +104,7 @@ wezterm.on('gui-startup', function(cmd)
   }
 
   -- 5) 右を上下に分割
-  --    Windows: 上=Claude Code(会社) / 下=Codex CLI
+  --    Windows: 上=Codex CLI / 下=Claude Code(会社)
   --    Other:   上=Codex CLI / 下=Gemini CLI
   local right_bottom = right_pane:split {
     direction = 'Bottom',
@@ -118,8 +118,8 @@ wezterm.on('gui-startup', function(cmd)
     left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
     middle_pane:send_text('claude\n')
     middle_bottom:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
-    right_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus\n')
-    right_bottom:send_text('cd C:\\claude; codex\n')
+    right_pane:send_text('cd C:\\claude; codex\n')
+    right_bottom:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus\n')
   else
     left_bottom:send_text('cd ~/dotfiles && lazygit\n')
     middle_pane:send_text('claude\n')
