@@ -58,7 +58,7 @@ for _, app in ipairs(launcher_apps) do
 end
 
 -- 6ペインレイアウトで最大化起動
--- 比率 = 左1 : 中5 : 右2
+-- 比率 = 左2 : 中4 : 右4
 -- Windows:
 -- ┌──────┬────────────────────────┬──────────────┐
 -- │ yazi │     Claude Code        │  Codex CLI   │
@@ -79,54 +79,55 @@ wezterm.on('gui-startup', function(cmd)
   local tab, pane, window = mux.spawn_window(cmd or {})
   window:gui_window():maximize()
 
-  -- 1) 右カラムを切り出し (3/10 = 0.3)
-  local right_pane = pane:split {
-    direction = 'Right',
-    size = 0.3,
-  }
+  -- 最大化後の実サイズに対して分割する。
+  wezterm.time.call_after(0.2, function()
+    local bottom_ratio = 0.35
 
-  -- 2) 残りから中央ペインを切り出し (3/4 = 0.75)
-  local middle_pane = pane:split {
-    direction = 'Right',
-    size = 0.75,
-  }
+    -- 1) 右カラムを切り出し (左:中:右 = 2:4:4 の右4/10)
+    local right_pane = pane:split {
+      direction = 'Right',
+      size = 4 / 10,
+    }
 
-  -- 3) 左側を上下に分割（上:yazi、下:lazygit）
-  local left_bottom = pane:split {
-    direction = 'Bottom',
-    size = 0.25,
-  }
+    -- 2) 残りから中央ペインを切り出し (左:中 = 2:4 の中2/3)
+    local middle_pane = pane:split {
+      direction = 'Right',
+      size = 2 / 3,
+    }
 
-  -- 4) 中央を上下に分割（上:Claude Code、下:Obsidian Tasks）
-  local middle_bottom = middle_pane:split {
-    direction = 'Bottom',
-    size = 0.4,
-  }
+    -- 3) 全カラムを同じ高さで上下分割
+    local left_bottom = pane:split {
+      direction = 'Bottom',
+      size = bottom_ratio,
+    }
 
-  -- 5) 右を上下に分割
-  --    Windows: 上=Codex CLI / 下=Claude Code(会社)
-  --    Other:   上=Codex CLI / 下=Gemini CLI
-  local right_bottom = right_pane:split {
-    direction = 'Bottom',
-    size = 0.35,
-  }
+    local middle_bottom = middle_pane:split {
+      direction = 'Bottom',
+      size = bottom_ratio,
+    }
 
-  -- 各ペインでコマンド実行
-  pane:send_text('yazi\n')
+    local right_bottom = right_pane:split {
+      direction = 'Bottom',
+      size = bottom_ratio,
+    }
 
-  if is_windows then
-    left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
-    middle_pane:send_text('claude\n')
-    middle_bottom:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
-    right_pane:send_text('cd C:\\claude; codex\n')
-    right_bottom:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus\n')
-  else
-    left_bottom:send_text('cd ~/dotfiles && lazygit\n')
-    middle_pane:send_text('claude\n')
-    middle_bottom:send_text('bash ~/dotfiles/wezterm/todoist.sh\n')
-    right_pane:send_text('cd ~/claude && codex\n')
-    right_bottom:send_text('cd ~/claude && gemini\n')
-  end
+    -- 各ペインでコマンド実行
+    pane:send_text('yazi\n')
+
+    if is_windows then
+      left_bottom:send_text('cd $HOME\\dotfiles; lazygit\n')
+      middle_pane:send_text('claude\n')
+      middle_bottom:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
+      right_pane:send_text('cd C:\\claude; codex\n')
+      right_bottom:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus\n')
+    else
+      left_bottom:send_text('cd ~/dotfiles && lazygit\n')
+      middle_pane:send_text('claude\n')
+      middle_bottom:send_text('bash ~/dotfiles/wezterm/todoist.sh\n')
+      right_pane:send_text('cd ~/claude && codex\n')
+      right_bottom:send_text('cd ~/claude && gemini\n')
+    end
+  end)
 end)
 
 -- カスタムカラースキーム
