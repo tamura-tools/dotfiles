@@ -119,7 +119,7 @@ wezterm.on('gui-startup', function(cmd)
       middle_pane:send_text('claude\n')
       middle_bottom:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
       right_pane:send_text('cd C:\\claude; codex\n')
-      right_bottom:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus\n')
+      right_bottom:send_text('cd C:\\tamura; $env:CLAUDE_CONFIG_DIR = $null; claude\n')
     else
       left_bottom:send_text('cd ~/dotfiles && lazygit\n')
       middle_pane:send_text('claude\n')
