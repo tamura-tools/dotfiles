@@ -19,7 +19,7 @@ local is_windows = wezterm.target_triple:find('windows') ~= nil
 local launcher_apps
 if is_windows then
   launcher_apps = {
-    { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude' },
+    { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = $null; claude' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus' },
     { id = 'claude-clean', label = 'Claude Code (Clean)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
     { id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
@@ -119,7 +119,7 @@ wezterm.on('gui-startup', function(cmd)
       middle_pane:send_text('claude\n')
       middle_bottom:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
       right_pane:send_text('cd C:\\claude; codex\n')
-      right_bottom:send_text('cd C:\\tamura; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude\n')
+      right_bottom:send_text('cd C:\\tamura; $env:CLAUDE_CONFIG_DIR = $null; claude\n')
     else
       left_bottom:send_text('cd ~/dotfiles && lazygit\n')
       middle_pane:send_text('claude\n')
