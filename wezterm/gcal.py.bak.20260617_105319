@@ -1,0 +1,121 @@
+#!/usr/bin/env python
+# gcal.py — Google Calendar の当日+数日分のアジェンダを省スペース表示する。
+# 左中ペイン(calendar.ps1)から定期呼び出しされる前提。幅 約40桁を想定。
+#
+# 資格情報・トークンは dotfiles(git管理下) ではなく ~/.config/gcal/ に置く:
+#   ~/.config/gcal/client_secret.json … OAuthデスクトップ クライアント
+#   ~/.config/gcal/token.json          … 初回認証で自動生成
+#
+# 初回だけブラウザ同意が要る:  python gcal.py --auth
+# 以降は calendar.ps1 が引数なしで定期実行する。
+
+import os
+import sys
+import datetime
+from collections import OrderedDict
+
+try:
+    sys.stdout.reconfigure(encoding='utf-8')  # パイプ経由でも日本語を化けさせない
+except Exception:
+    pass
+
+CFG    = os.path.join(os.path.expanduser('~'), '.config', 'gcal')
+CLIENT = os.path.join(CFG, 'client_secret.json')
+TOKEN  = os.path.join(CFG, 'token.json')
+SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+DAYS   = 3     # 今日から何日先まで
+MAXN   = 25
+WIDTH  = 26    # summary の最大表示幅(おおよそ)
+
+
+def get_creds(do_auth):
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+
+    creds = None
+    if os.path.exists(TOKEN):
+        creds = Credentials.from_authorized_user_file(TOKEN, SCOPES)
+    if creds and creds.valid:
+        return creds
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            with open(TOKEN, 'w', encoding='utf-8') as f:
+                f.write(creds.to_json())
+            return creds
+        except Exception:
+            pass  # refresh 失敗 → 再認証へ
+    if not do_auth:
+        return None  # 未認証（ブラウザは開かない）
+    if not os.path.exists(CLIENT):
+        print("  client_secret.json が無い:")
+        print("  " + CLIENT)
+        sys.exit(1)
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    flow = InstalledAppFlow.from_client_secrets_file(CLIENT, SCOPES)
+    creds = flow.run_local_server(port=0)
+    with open(TOKEN, 'w', encoding='utf-8') as f:
+        f.write(creds.to_json())
+    return creds
+
+
+def clip(s, n=WIDTH):
+    s = s.replace('\n', ' ').strip()
+    return s if len(s) <= n else s[:n - 1] + '…'
+
+
+def main():
+    do_auth = '--auth' in sys.argv
+    now = datetime.datetime.now().astimezone()
+
+    creds = get_creds(do_auth)
+    if not creds:
+        print(f"  {now:%m/%d %H:%M} GCal")
+        print()
+        print("  未認証です。初回だけ手動で:")
+        print("  python ~/dotfiles/wezterm/gcal.py --auth")
+        return
+
+    from googleapiclient.discovery import build
+    svc = build('calendar', 'v3', credentials=creds, cache_discovery=False)
+
+    tmin = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    tmax = tmin + datetime.timedelta(days=DAYS)
+    try:
+        events = svc.events().list(
+            calendarId='primary',
+            timeMin=tmin.isoformat(), timeMax=tmax.isoformat(),
+            singleEvents=True, orderBy='startTime', maxResults=MAXN,
+        ).execute().get('items', [])
+    except Exception as e:
+        print(f"  {now:%m/%d %H:%M} GCal")
+        print()
+        print("  取得エラー:")
+        print("  " + clip(str(e), 34))
+        return
+
+    days = OrderedDict()
+    for e in events:
+        st = e['start']
+        if 'date' in st and 'dateTime' not in st:        # 終日
+            d = datetime.date.fromisoformat(st['date'])
+            days.setdefault(d, []).append((None, e.get('summary', '(無題)')))
+        else:
+            dt = datetime.datetime.fromisoformat(st['dateTime'].replace('Z', '+00:00')).astimezone()
+            days.setdefault(dt.date(), []).append((dt, e.get('summary', '(無題)')))
+
+    print(f"  {now:%m/%d (%a) %H:%M} GCal")
+    print()
+    if not days:
+        print(f"  予定なし(今日〜{DAYS}日)")
+        return
+    for d, items in days.items():
+        label = '今日' if d == now.date() else f"{d:%m/%d(%a)}"
+        print(f"  ── {label} ──")
+        for t, summ in items:
+            tlabel = '終日 ' if t is None else f"{t:%H:%M}"
+            print(f"  {tlabel} {clip(summ)}")
+
+
+if __name__ == '__main__':
+    main()

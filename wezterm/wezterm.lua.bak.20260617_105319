@@ -20,7 +20,7 @@ local launcher_apps
 if is_windows then
   launcher_apps = {
     { id = 'claude',     label = 'Claude Code',       cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude' },
-    { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude' },
+    { id = 'claude-work', label = 'Claude Code (会社)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work"; claude --model opus' },
     { id = 'claude-clean', label = 'Claude Code (Clean)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
     { id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = '$env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
@@ -57,39 +57,19 @@ for _, app in ipairs(launcher_apps) do
   launcher_cmds[app.id] = app.cmd
 end
 
--- 7ペインレイアウトで最大化起動（2026-06-17 役割ベースに再編 / 左カラム3分割）
+-- 6ペインレイアウトで最大化起動（2026-06-17 役割ベースに再編）
 -- 比率 = 左2 : 中4 : 右4 / 高さは上下等分（bottom_ratio=0.5）
---
--- ===================================================================
--- ★ ペイン番号呼称（このマシンの公式呼び方。会話・指示はこの番号で統一）
--- ===================================================================
---   ⑦
---   ⑥　①　②
---   ⑤　④　③
---
---   ① 中上 = 会社用 Claude Code（司令／壁打ち）  agmsg=cc     CLAUDE_CONFIG_DIR=~/.claude
---   ② 右上 = Codex（レビュー）                    agmsg=codex
---   ③ 右下 = 個人用 Claude Code（実行ワーカー）    agmsg=claude  CLAUDE_CONFIG_DIR=~/.claude-personal / cwd=C:\tamura
---   ④ 中下 = 会社用 Claude Code（実行ワーカー）    agmsg=cc-w   CLAUDE_CONFIG_DIR=~/.claude
---   ⑤ 左下 = Codex 自動受信 watcher
---   ⑥ 左中 = Google カレンダー
---   ⑦ 左上 = Todoist
---   ※「左上／右下」等の位置呼びは廃止。必ず番号（①〜⑦）で呼ぶこと。
---   ※ agmsg宛名: ①=cc / ④=cc-w（同じ/c/claudeだが起動時 actas で排他分離）/ ③=claude / ②=codex。
---     ④を名指しするには `send.sh tamura cc-w "..."`。①は `cc`。
--- ===================================================================
---
--- Windows（左カラムだけ3分割。図中の丸数字が上記の番号）:
+-- Windows（左カラムだけ3分割）:
 -- ┌──────────┬────────────────────┬──────────────────┐
--- │⑦Todoist  │① 司令／壁打ち(会社) │② Codex (レビュー) │
+-- │ Todoist  │ 司令／壁打ち(会社)  │ Codex (レビュー)  │
 -- ├──────────┤                    │                  │
--- │⑥カレンダー│────────────────────│──────────────────│
--- ├──────────┤④ 実行ワーカー(会社) │③ 実行ワーカー(個人)│
--- │⑤watcher  │                    │                  │
+-- │ カレンダー │────────────────────│──────────────────│
+-- ├──────────┤ 実行ワーカー(会社)  │ 実行ワーカー(個人) │
+-- │ watcher  │                    │                  │
 -- └──────────┴────────────────────┴──────────────────┘
---   左 = ⑦Todoist / ⑥カレンダー / ⑤Codex自動受信watcher（細い列・3分割）
---   中 = 会社Claude 2枚（上=①司令/壁打ち, 下=④実行ワーカー）
---   右 = 上 ②Codexレビュー / 下 ③個人Claude実行(C:\tamura)
+--   左 = Todoist / カレンダー(暫定) / Codex自動受信watcher（細い列・3分割）
+--   中 = 会社Claude 2枚（上=司令/壁打ち, 下=実行ワーカー）
+--   右 = 上 Codexレビュー / 下 個人Claude実行(C:\tamura)
 --   ※ yazi / lazygit は常駐から外し F9 ランチャーで随時起動
 --   ※ watcher は右上Codexペインの実IDを gui-startup から動的注入（CODEX_PANE固定値の罠を解消）
 -- Other OS (Mac): 従来レイアウト維持（yazi/lazygit/claude/Todoist/codex/gemini）
@@ -138,25 +118,19 @@ wezterm.on('gui-startup', function(cmd)
     local codex_pane_id = right_pane:pane_id()
 
     if is_windows then
-      -- ⑦ 左上: タスク管理ボード（Todoist）
+      -- 左上: タスク管理ボード（Todoist）
       pane:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
-      -- ⑥ 左中: カレンダー（calendar.ps1。暫定=月表示 → 後日 Google Calendar 連携へ中身を差し替え）
+      -- 左中: カレンダー（calendar.ps1。暫定=月表示 → 後日 Google Calendar 連携へ中身を差し替え）
       left_mid:send_text('& $HOME\\dotfiles\\wezterm\\calendar.ps1\n')
-      -- ⑤ 左下: Codex 自動受信 watcher（右上=②Codexペインの実IDを注入）
-      -- bash は Git Bash を明示。素の `bash` は WSL(bash.exe) に解決され /c/... を見られず
-      -- "No such file or directory" になる。スクリプトは MSYS パス前提なので Git Bash 必須。
-      left_bottom:send_text('$env:CODEX_PANE=' .. codex_pane_id .. '; & "C:/Program Files/Git/bin/bash.exe" -lc /c/claude/.codex/agmsg-inject/watch-codex.sh\n')
-      -- ① 中上: 司令／壁打ち（会社Claude）。個人ペインと対称に CLAUDE_CONFIG_DIR を明示（既定の .claude）
-      -- agmsg: 初期プロンプトで自身を `cc` に固定（actas）。①④は同じ /c/claude・同じ設定で
-      -- agmsg上は区別できないため、各ペインが起動時に排他ロールを名乗ることで宛名を分離する。
-      -- watch.sh のロック判定は起動時1回のみ → 片方だけ actas だと起動順で取りこぼすので両方明示。
-      middle_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude "/agmsg actas cc"\n')
-      -- ④ 中下: 実行ワーカー（会社Claude）。agmsg: 初期プロンプトで自身を `cc-w` に固定（actas）。
-      -- これにより `cc-w` 宛メッセージは④だけが受信し、洸さんが④を名指しできる。
-      middle_bottom:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude "/agmsg actas cc-w"\n')
-      -- ② 右上: レビュー専用（Codex）
+      -- 左下: Codex 自動受信 watcher（右上Codexペインの実IDを注入）
+      left_bottom:send_text('$env:CODEX_PANE=' .. codex_pane_id .. '; bash -lc /c/claude/.codex/agmsg-inject/watch-codex.sh\n')
+      -- 中上: 司令／壁打ち（会社Claude）
+      middle_pane:send_text('claude\n')
+      -- 中下: 実行ワーカー（会社Claude）
+      middle_bottom:send_text('cd C:\\claude; claude\n')
+      -- 右上: レビュー専用（Codex）
       right_pane:send_text('cd C:\\claude; codex\n')
-      -- ③ 右下: 実行ワーカー（個人Claude）
+      -- 右下: 実行ワーカー（個人Claude）
       right_bottom:send_text('cd C:\\tamura; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude\n')
     else
       -- Mac は従来レイアウト維持（multi-agent/watcher は Windows 専用のため）
