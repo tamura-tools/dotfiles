@@ -27,6 +27,7 @@ if is_windows then
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
     { id = 'dashboard',  label = 'Todoist',            cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1' },
     { id = 'codex',      label = 'Codex CLI',          cmd = 'cd C:\\claude; codex' },
+    { id = 'grok',       label = 'Grok Build',         cmd = 'cd C:\\claude; grok' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'PowerShell',        cmd = '' },
   }
@@ -67,16 +68,15 @@ end
 --   ⑥　①　②
 --   ⑤　④　③
 --
---   ① 中上 = 会社用 Claude Code（司令／壁打ち）  agmsg=cc     CLAUDE_CONFIG_DIR=~/.claude
---   ② 右上 = Codex（レビュー）                    agmsg=codex
---   ③ 右下 = 個人用 Claude Code（実行ワーカー）    agmsg=claude  CLAUDE_CONFIG_DIR=~/.claude-personal / cwd=C:\tamura
---   ④ 中下 = 会社用 Claude Code（実行ワーカー）    agmsg=cc-w   CLAUDE_CONFIG_DIR=~/.claude
+--   ① 中上 = 会社用 Claude Code（司令／壁打ち）  CLAUDE_CONFIG_DIR=~/.claude
+--   ② 右上 = Codex（レビュー）
+--   ③ 右下 = 個人用 Claude Code（実行ワーカー）    CLAUDE_CONFIG_DIR=~/.claude-personal / cwd=C:\tamura
+--   ④ 中下 = Grok Build（xAI 実行ワーカー）        cwd=C:\claude / grok（~/.grok/bin, User PATH 済）
 --   ⑤ 左下 = Codex 自動受信 watcher
 --   ⑥ 左中 = Google カレンダー
 --   ⑦ 左上 = Todoist
 --   ※「左上／右下」等の位置呼びは廃止。必ず番号（①〜⑦）で呼ぶこと。
---   ※ agmsg宛名: ①=cc / ④=cc-w（同じ/c/claudeだが起動時 actas で排他分離）/ ③=claude / ②=codex。
---     ④を名指しするには `send.sh tamura cc-w "..."`。①は `cc`。
+--   ※ 2026-06-22: ④を会社Claudeワーカー(cc-w)から Grok Build に置換。agmsg 監視デーモン撤去（手動 send.sh のみ残置）。
 -- ===================================================================
 --
 -- Windows（左カラムだけ3分割。図中の丸数字が上記の番号）:
@@ -84,11 +84,11 @@ end
 -- │⑦Todoist  │① 司令／壁打ち(会社) │② Codex (レビュー) │
 -- ├──────────┤                    │                  │
 -- │⑥カレンダー│────────────────────│──────────────────│
--- ├──────────┤④ 実行ワーカー(会社) │③ 実行ワーカー(個人)│
+-- ├──────────┤④ Grok Build (xAI)  │③ 実行ワーカー(個人)│
 -- │⑤watcher  │                    │                  │
 -- └──────────┴────────────────────┴──────────────────┘
 --   左 = ⑦Todoist / ⑥カレンダー / ⑤Codex自動受信watcher（細い列・3分割）
---   中 = 会社Claude 2枚（上=①司令/壁打ち, 下=④実行ワーカー）
+--   中 = 上=①会社Claude司令/壁打ち, 下=④Grok Build(xAI)
 --   右 = 上 ②Codexレビュー / 下 ③個人Claude実行(C:\tamura)
 --   ※ yazi / lazygit は常駐から外し F9 ランチャーで随時起動
 --   ※ watcher は右上Codexペインの実IDを gui-startup から動的注入（CODEX_PANE固定値の罠を解消）
@@ -146,14 +146,11 @@ wezterm.on('gui-startup', function(cmd)
       -- bash は Git Bash を明示。素の `bash` は WSL(bash.exe) に解決され /c/... を見られず
       -- "No such file or directory" になる。スクリプトは MSYS パス前提なので Git Bash 必須。
       left_bottom:send_text('$env:CODEX_PANE=' .. codex_pane_id .. '; & "C:/Program Files/Git/bin/bash.exe" -lc /c/claude/.codex/agmsg-inject/watch-codex.sh\n')
-      -- ① 中上: 司令／壁打ち（会社Claude）。個人ペインと対称に CLAUDE_CONFIG_DIR を明示（既定の .claude）
-      -- agmsg: 初期プロンプトで自身を `cc` に固定（actas）。①④は同じ /c/claude・同じ設定で
-      -- agmsg上は区別できないため、各ペインが起動時に排他ロールを名乗ることで宛名を分離する。
-      -- watch.sh のロック判定は起動時1回のみ → 片方だけ actas だと起動順で取りこぼすので両方明示。
-      middle_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude "/agmsg actas cc"\n')
-      -- ④ 中下: 実行ワーカー（会社Claude）。agmsg: 初期プロンプトで自身を `cc-w` に固定（actas）。
-      -- これにより `cc-w` 宛メッセージは④だけが受信し、洸さんが④を名指しできる。
-      middle_bottom:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude "/agmsg actas cc-w"\n')
+      -- ① 中上: 司令／壁打ち（会社Claude）。CLAUDE_CONFIG_DIR=.claude を明示。
+      -- 2026-06-22: agmsg 監視撤去に伴い actas 指定は廃止（手動 send.sh のみ運用）。
+      middle_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude\n')
+      -- ④ 中下: Grok Build（xAI 実行ワーカー）。cwd=C:\claude で AGENTS.md/MCP を継承。grok は ~/.grok/bin（User PATH 済）。
+      middle_bottom:send_text('cd C:\\claude; grok\n')
       -- ② 右上: レビュー専用（Codex）
       right_pane:send_text('cd C:\\claude; codex\n')
       -- ③ 右下: 実行ワーカー（個人Claude）
