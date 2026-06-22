@@ -133,19 +133,15 @@ wezterm.on('gui-startup', function(cmd)
       size = bottom_ratio,
     }
 
-    -- 各ペインでコマンド実行（役割ベース: 左=タスク/watcher・中=会社Claude2枚・右=Codex/個人Claude）
-    -- Codex は右上(right_pane)。watcher にこの実IDを渡し、CODEX_PANE 固定値の罠を回避する。
-    local codex_pane_id = right_pane:pane_id()
+    -- 各ペインでコマンド実行（役割ベース: 左=タスク/使用量・中=①会社Claude司令/④Grok・右=Codex/個人Claude）
 
     if is_windows then
       -- ⑦ 左上: タスク管理ボード（Todoist）
       pane:send_text('& $HOME\\dotfiles\\wezterm\\todoist.ps1\n')
       -- ⑥ 左中: カレンダー（calendar.ps1。暫定=月表示 → 後日 Google Calendar 連携へ中身を差し替え）
       left_mid:send_text('& $HOME\\dotfiles\\wezterm\\calendar.ps1\n')
-      -- ⑤ 左下: Codex 自動受信 watcher（右上=②Codexペインの実IDを注入）
-      -- bash は Git Bash を明示。素の `bash` は WSL(bash.exe) に解決され /c/... を見られず
-      -- "No such file or directory" になる。スクリプトは MSYS パス前提なので Git Bash 必須。
-      left_bottom:send_text('$env:CODEX_PANE=' .. codex_pane_id .. '; & "C:/Program Files/Git/bin/bash.exe" -lc /c/claude/.codex/agmsg-inject/watch-codex.sh\n')
+      -- ⑤ 左下: AI使用量ライブ（Claude/Codex の枠消費を 30s ごとに表示）。2026-06-22 Codex watcher から転換。
+      left_bottom:send_text('& $HOME\\dotfiles\\wezterm\\ai_usage_pane.ps1\n')
       -- ① 中上: 司令／壁打ち（会社Claude）。CLAUDE_CONFIG_DIR=.claude を明示。
       -- 2026-06-22: agmsg 監視撤去に伴い actas 指定は廃止（手動 send.sh のみ運用）。
       middle_pane:send_text('cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude\n')
