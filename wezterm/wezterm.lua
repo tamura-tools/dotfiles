@@ -283,6 +283,10 @@ config.color_schemes = {
 
 config.color_scheme = 'Tokyo Night'
 config.automatically_reload_config = true
+-- 2026-06-22: ④Grok Build は TUI が背景色でセルを塗りつぶすため壁紙が透けない。
+-- WezTerm はペイン個別の透過を持たないので、色付きセル背景の不透明度を全体で下げて透かす。
+-- 副作用: 全ペインの選択範囲/シンタックス・差分ハイライト等の色付き背景も薄くなる（既定背景の通常テキストは無変化）。
+config.text_background_opacity = 0.3
 config.font = wezterm.font('UDEV Gothic NF')
 config.font_size = 12
 config.initial_cols = 200

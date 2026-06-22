@@ -54,10 +54,13 @@ function Get-ClaudeBlockStat([string]$ConfigDir) {
     return $res
 }
 
+# 個=個人(~/.claude-personal) / 社=会社(~/.claude)。
+# このマシンの CLAUDE_CONFIG_DIR 割当（CLAUDE.md・wezterm.lua ランチャー準拠）に合わせる。
+# 旧コードは personal→.claude / work→.claude-work(不在) で取り違えていた（2026-06-22 修正）。
 $out = [ordered]@{
     ts       = [int][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    personal = (Get-ClaudeBlockStat "$HOME\.claude")
-    work     = (Get-ClaudeBlockStat "$HOME\.claude-work")
+    personal = (Get-ClaudeBlockStat "$HOME\.claude-personal")
+    work     = (Get-ClaudeBlockStat "$HOME\.claude")
 }
 
 try {
