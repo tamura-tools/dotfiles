@@ -41,6 +41,7 @@ else
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
     { id = 'dashboard',  label = 'Todoist',            cmd = 'bash ~/dotfiles/wezterm/todoist.sh' },
     { id = 'codex',      label = 'Codex CLI',          cmd = 'cd ~/claude && codex' },
+    { id = 'grok',       label = 'Grok Build',         cmd = 'cd ~/claude && grok' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
   }
@@ -68,13 +69,7 @@ end
 --   ⑥　①　②
 --   ⑤　④　③
 --
---   ① 中上 = 会社用 Claude Code（司令／壁打ち）  CLAUDE_CONFIG_DIR=~/.claude
---   ② 右上 = Codex（レビュー）
---   ③ 右下 = 個人用 Claude Code（実行ワーカー）    CLAUDE_CONFIG_DIR=~/.claude-personal / cwd=C:\tamura
---   ④ 中下 = Grok Build（xAI 実行ワーカー）        cwd=C:\claude / grok（~/.grok/bin, User PATH 済）
---   ⑤ 左下 = Codex 自動受信 watcher
---   ⑥ 左中 = Google カレンダー
---   ⑦ 左上 = Todoist
+--   ①〜⑦の具体的な役割はOS別の図を参照（位置番号は両OS共通）
 --   ※「左上／右下」等の位置呼びは廃止。必ず番号（①〜⑦）で呼ぶこと。
 --   ※ 2026-06-22: ④を会社Claudeワーカー(cc-w)から Grok Build に置換。agmsg 監視デーモン撤去（手動 send.sh のみ残置）。
 -- ===================================================================
@@ -92,7 +87,15 @@ end
 --   右 = 上 ②Codexレビュー / 下 ③個人Claude実行(C:\tamura)
 --   ※ yazi / lazygit は常駐から外し F9 ランチャーで随時起動
 --   ※ watcher は右上Codexペインの実IDを gui-startup から動的注入（CODEX_PANE固定値の罠を解消）
--- Other OS (Mac): 従来レイアウト維持（yazi/lazygit/claude/Todoist/codex/gemini）
+-- Mac（個人アカウント中心。AIの重複を避け、右下を実行・検証Shellにする）:
+-- ┌──────────┬────────────────────┬──────────────────┐
+-- │⑦Todoist  │① Claude 司令／壁打ち│② Codex (レビュー) │
+-- ├──────────┤                    │                  │
+-- │⑥カレンダー│────────────────────│──────────────────│
+-- ├──────────┤④ Grok Build (実装) │③ Shell (実行/検証)│
+-- │⑤lazygit  │                    │                  │
+-- └──────────┴────────────────────┴──────────────────┘
+--   ※ Gemini / yazi は常駐から外し F9 ランチャーで随時起動
 wezterm.on('gui-startup', function(cmd)
   local tab, pane, window = mux.spawn_window(cmd or {})
   window:gui_window():maximize()
@@ -133,7 +136,7 @@ wezterm.on('gui-startup', function(cmd)
       size = bottom_ratio,
     }
 
-    -- 各ペインでコマンド実行（役割ベース: 左=タスク/使用量・中=①会社Claude司令/④Grok・右=Codex/個人Claude）
+    -- 各ペインでコマンド実行（役割ベース。Windows/Macでアカウント構成だけ分岐）
 
     if is_windows then
       -- ⑦ 左上: タスク管理ボード（Todoist）
@@ -152,14 +155,21 @@ wezterm.on('gui-startup', function(cmd)
       -- ③ 右下: 実行ワーカー（個人Claude）
       right_bottom:send_text('cd C:\\tamura; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude\n')
     else
-      -- Mac は従来レイアウト維持（multi-agent/watcher は Windows 専用のため）
-      pane:send_text('yazi\n')
+      -- Mac: ①Claudeで考える → ④Grokで作る → ③Shellで動かす → ②Codexでレビュー
+      -- ⑦ 左上: Todoist
+      pane:send_text('bash ~/dotfiles/wezterm/todoist.sh\n')
+      -- ⑥ 左中: カレンダー
       left_mid:send_text('cal\n')
+      -- ⑤ 左下: lazygit（Macでは軽量な常駐Gitビューとして維持）
       left_bottom:send_text('cd ~/dotfiles && lazygit\n')
+      -- ① 中上: 個人Claudeの司令／壁打ち
       middle_pane:send_text('claude\n')
-      middle_bottom:send_text('bash ~/dotfiles/wezterm/todoist.sh\n')
+      -- ④ 中下: Grok Buildの実装ワーカー
+      middle_bottom:send_text('cd ~/claude && grok\n')
+      -- ② 右上: Codexレビュー
       right_pane:send_text('cd ~/claude && codex\n')
-      right_bottom:send_text('cd ~/claude && gemini\n')
+      -- ③ 右下: テスト・ログ・開発サーバー用の通常Shell
+      right_bottom:send_text('cd ~/claude\n')
     end
   end)
 end)
