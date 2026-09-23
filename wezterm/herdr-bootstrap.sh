@@ -4,9 +4,11 @@
 # WezTerm gui-startup からバックグラウンド実行される。
 # 用法: herdr-bootstrap.sh [--configure-only] [--skip-extra] [--skip-review]
 #
-#   w1 CONTROL / ENTRY : 相談・企画・Task Packet作成の4枠
-#   w2 🦍 EXECUTION    : Supervisor / Reviewer A / Worker A / Worker B
-#   w3 EXTRA  : 予備枠
+#   w1 デフォルト   : Commander / Sol / Utility / Codex Work - Main（旧 Status 枠）
+#   w2 Extra        : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra
+#   w3 🦍 EXECUTION : Supervisor / Reviewer A / Worker A / Worker B（中身は変更なし）
+#   w4 🦍 受付      : Loop Inbox Receiver 枠。Mac には loop_intake.py が無いため何も起動しない
+#   （2026-09-24 再編。Windows と同じ作成順）
 #
 # CommanderはSupervisorではない。実行LoopへはTask Packetをpendingへ投入して渡す。
 # Supervisorへの直接相談と、Supervisor自身による成果物作成は禁止する。
@@ -50,13 +52,14 @@ CODEX_ACCOUNT_SCRIPT="$HOME/dotfiles/wezterm/codex-account.sh"
 # ワークスペースは「番号順 = この並び順」で扱う。herdr には並べ替えコマンドが無く、
 # 番号は作成順で決まる。新規セッションではこの順に作られ、既存セッションでは
 # 不足分が末尾に追加される（順番を正すには herdr server の作り直しが要る）。
-WORKSPACE_PLAN=('CONTROL / ENTRY' '🦍 EXECUTION' 'Extra')
+# ※「🦍 EXECUTION」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
+WORKSPACE_PLAN=('デフォルト' 'Extra' '🦍 EXECUTION' '🦍 受付')
 
 legacy_label_for() {
   case "$1" in
-    'CONTROL / ENTRY') echo 'Core Agents' ;;
-    '🦍 EXECUTION')    echo 'Review Agents' ;;
-    'Extra')           echo 'Extra Agents' ;;
+    'デフォルト')    echo 'CONTROL / ENTRY' ;;
+    'Extra')         echo 'Extra Agents' ;;
+    '🦍 EXECUTION')  echo 'Review Agents' ;;
   esac
 }
 
@@ -220,15 +223,23 @@ start_agent_if_missing() {
 
 start_server
 
-CONTROL_WS=$(resolve_workspace 0 'CONTROL / ENTRY')
-EXECUTION_WS=$(resolve_workspace 1 '🦍 EXECUTION')
-EXTRA_WS=$(resolve_workspace 2 'Extra')
+CONTROL_WS=$(resolve_workspace 0 'デフォルト')
+EXTRA_WS=$(resolve_workspace 1 'Extra')
+EXECUTION_WS=$(resolve_workspace 2 '🦍 EXECUTION')
+RECEPTION_WS=$(resolve_workspace 3 '🦍 受付')
 
-# CONTROL / ENTRY: 相談窓口とTask Packet作成。CommanderはSupervisorではない。
+# デフォルト: 相談窓口とTask Packet作成。CommanderはSupervisorではない。
+# 4枚目は旧 Status 枠を Codex 会社にする（2026-09-24）。Codex 会社の2枠は
+# 「Codex Work - Main」「Codex Work - Extra」とし、一方が他方の前方一致にならない名前にする。
 init_pane_grid "$CONTROL_WS" 4
 apply_pane_labels "$CONTROL_WS" \
   'Commander - Claude Work / Opus 5' 'Sol - Codex Personal / GPT-5.6 Sol' \
-  'Utility - Claude Personal' 'Status - Shell'
+  'Utility - Claude Personal' 'Codex Work - Main'
+
+# EXTRA: 4枚目は旧「Codex - Extra」を Windows と同じ「Codex Work - Extra」に改名（中身は同じ Codex 会社）。
+init_pane_grid "$EXTRA_WS" 4
+apply_pane_labels "$EXTRA_WS" \
+  'Grok' 'Antigravity CLI' 'Claude Work - Extra' 'Codex Work - Extra'
 
 # EXECUTION: 入力はTask Packetのみ。MVPはReviewer Aのみで1 Loopずつ処理する。
 init_pane_grid "$EXECUTION_WS" 4
@@ -236,10 +247,9 @@ apply_pane_labels "$EXECUTION_WS" \
   'Supervisor - Claude Work / Opus 5' 'Reviewer A - Claude Work / Opus 5' \
   'Worker A - Gemini 3.8 Flash' 'Worker B - Claude Work / Sonnet 5'
 
-# EXTRA: 既存の予備4枠を維持する。
-init_pane_grid "$EXTRA_WS" 4
-apply_pane_labels "$EXTRA_WS" \
-  'Grok' 'Antigravity CLI' 'Claude Work - Extra' 'Codex - Extra'
+# 🦍 受付: Windows と同じ名前の1枠だけ作る。Mac には loop_intake.py が無いため何も起動しない。
+init_pane_grid "$RECEPTION_WS" 1
+apply_pane_labels "$RECEPTION_WS" 'Loop Inbox Receiver'
 
 LIVE_PANE_IDS=$(live_agent_pane_ids)
 
@@ -260,7 +270,11 @@ start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Utility - Claude Perso
   'Utility' \
   bash -c "unset CLAUDE_CONFIG_DIR; export AGMSG_AGENT=utility; cd $WORK_ROOT && claude --name utility"
 
-# Statusは将来のgorilla status / Ledger / pending確認用。現時点ではShellのまま起動しない。
+# 旧 Status 枠（Shellのまま起動しなかった）を Codex 会社にする（2026-09-24）。
+# AGMSG_AGENT は agmsg 登録済みの `codex`（旧 会社Codex）を使う。
+start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Codex Work - Main')" \
+  'Codex Work - Main' \
+  bash -c "export AGMSG_AGENT=codex; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
 
 # --- EXECUTION ---
 start_agent_if_missing "$(pane_id_by_label "$EXECUTION_WS" 'Supervisor - Claude Work / Opus 5')" \
@@ -296,8 +310,8 @@ if [ "$SKIP_EXTRA" = false ]; then
     'Claude Work - Extra' \
     bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=claude-extra; cd $WORK_ROOT && claude --model opus --name claude-extra"
 
-  start_agent_if_missing "$(pane_id_by_label "$EXTRA_WS" 'Codex - Extra')" \
-    'Codex - Extra' \
+  start_agent_if_missing "$(pane_id_by_label "$EXTRA_WS" 'Codex Work - Extra')" \
+    'Codex Work - Extra' \
     bash -c "export AGMSG_AGENT=codex-extra; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
 fi
 
