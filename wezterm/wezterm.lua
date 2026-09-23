@@ -50,6 +50,8 @@ local mac_path_prefix =
 
 -- ローカルLLM(LM Studio)の起動コマンド生成。lms は %USERPROFILE%\.lmstudio\bin にあり、
 -- PATHが古いセッションでも動くよう明示追加する。model は `lms ls --json` の modelKey。
+-- ※ 2026-09-24: ローカルLLMは再構築予定のため F9 から外した（下の archived_launcher_apps を参照）。
+--    再構築時の土台として関数は残している。
 local function lms_chat(model)
   return '$env:PATH = "$HOME\\.lmstudio\\bin;$env:PATH"; lms chat ' .. model
 end
@@ -68,88 +70,128 @@ local function lms_agent(model, ctx)
     .. 'cd C:\\claude; opencode --model lmstudio/' .. model
 end
 
--- ランチャーメニュー: アプリ定義
+-- ===== F9 ランチャー: アプリ定義 =====
+-- 選んだアプリは「新しいタブ」で起動する（2026-09-24 変更）。
+--   旧方式は現在ペインへ Ctrl+C x2 → コマンド入力だったが、現在ペインは Herdr の TUI で、
+--   Herdr は Ctrl+C をフォーカス中のエージェントへそのまま渡すため、
+--   Supervisor / Worker などの作業を中断させてしまう問題があった。
+-- アプリを終了するとタブごと閉じる。cmd = '' は新しいタブで空のシェルを開く。
+-- 並び順は Windows / Mac で揃える。Claude / Codex のアカウント指定は OS ごとに異なる（統一しない方針）。
 local launcher_apps
 if is_windows then
   launcher_apps = {
-    -- ★ F9ランチャーは現在ペインへ直接起動する（Herdr管理外）。
-    --   Herdr Cockpitには表示されない。常駐AIの差し替えではなく一時利用向け。
     -- Claude系はアカウント(CLAUDE_CONFIG_DIR)と作業ディレクトリを必ずセットで指定する。
     -- 個人=.claude-personal↔C:\claude / 会社=.claude↔C:\claude。
     { id = 'claude',     label = 'Claude Code',       cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude"; claude' },
-    -- 旧世代モデルを明示指定して起動する枠（既定の opus は最新世代に追随するため別枠にする）。
-    { id = 'claude-opus46', label = 'Claude Code (Opus 4.6)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude --model claude-opus-4-6' },
-    { id = 'claude-clean', label = 'Claude Code (Clean)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
-    { id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
+    -- Codexはデスクトップ既定(~/.codex)と分離し、起動前にメールアドレスまで検証する。
+    -- 会社=~/.codex-work / 個人=~/.codex-personal。誤アカウントではCodexを起動しない。
+    { id = 'codex',      label = 'Codex CLI (会社 / Auto)', cmd = 'cd C:\\claude; & "$HOME\\dotfiles\\wezterm\\codex-account.ps1" -Account work --approve-for-me' },
+    { id = 'codex-personal', label = 'Codex CLI (個人)', cmd = 'cd C:\\claude; & "$HOME\\dotfiles\\wezterm\\codex-account.ps1" -Account personal' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd C:\\claude; gemini' },
     -- Antigravity CLI は agy コマンド（%LOCALAPPDATA%\agy\bin）。PATHが古いセッションでも動くよう明示追加
     -- 2026-08-17: 会社アカウント一本化。agy のログイン情報は Windows 資格情報マネージャー（keyring）の
     --   1枠に保存され、USERPROFILE/HOME を差し替えても同じアカウントで認証される（実機確認）。
     --   Codex のような個人/会社の同時併用はできないため、エントリは会社用の1本だけにする。
     { id = 'antigravity', label = 'Antigravity CLI (会社 / Auto)', cmd = '$env:PATH = "$env:LOCALAPPDATA\\agy\\bin;$env:PATH"; cd C:\\claude; agy --mode accept-edits --dangerously-skip-permissions' },
+    { id = 'grok',       label = 'Grok Build',         cmd = 'cd C:\\claude; grok' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
+    { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'dashboard',  label = 'Todoist',            cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1' },
     { id = 'calendar',   label = '📅 カレンダー',        cmd = '& $HOME\\dotfiles\\wezterm\\calendar.ps1' },
-    -- Codexはデスクトップ既定(~/.codex)と分離し、起動前にメールアドレスまで検証する。
-    -- 会社=~/.codex-work / 個人=~/.codex-personal。誤アカウントではCodexを起動しない。
-    { id = 'codex',      label = 'Codex CLI (会社 / Auto)', cmd = 'cd C:\\claude; & "$HOME\\dotfiles\\wezterm\\codex-account.ps1" -Account work --approve-for-me' },
-    { id = 'codex-personal', label = 'Codex CLI (個人)', cmd = 'cd C:\\claude; & "$HOME\\dotfiles\\wezterm\\codex-account.ps1" -Account personal' },
-    -- AI委譲キューはペイン注入ではなく、必要時だけ会社Claudeを非対話起動する。WezTerm常駐には依存しない。
-    { id = 'delegate-queue', label = '📨 AI委譲キュー', cmd = 'cd C:\\claude; ai-delegate watch' },
-    { id = 'agmsg-watch', label = '📨 agmsg 未ack一覧', cmd = 'cd C:\\claude; agmsg watch' },
-    { id = 'fugu',       label = '🐟 Sakana Fugu',      cmd = '$env:CODEX_HOME = "$HOME\\.codex-personal"; cd C:\\claude; doppler run --project sakana-ai --config prd -- codex-fugu' },
-    { id = 'fugu-ultra', label = '🐡 Sakana Fugu Ultra', cmd = '$env:CODEX_HOME = "$HOME\\.codex-personal"; cd C:\\claude; doppler run --project sakana-ai --config prd -- codex-fugu-ultra' },
-    { id = 'grok',       label = 'Grok Build',         cmd = 'cd C:\\claude; grok' },
-    -- ローカルLLM (LM Studio) の素のチャット。初回は選択モデルのメモリ読込に時間がかかる（9B級で1分前後、35B-A3Bは更に重い）。
-    -- ※ こちらはファイルを読めない（lms chat にツール実行の仕組みがない）。ファイル操作は下の 🛠 側を使う。
-    -- modelKey は `lms ls --json` 準拠（2026-08-07 時点: Nemotron / Gemma / Qwen3.6-35B-A3B / LFM）。
-    -- 旧 qwen3.5-4b-rys-ud はコーダー枠を Qwen3.6-35B-A3B に入れ替え（ランチャーからは外した。ディスク上に残っていても可）。
-    { id = 'lms-nemotron',  label = '🤖 LLM: Nemotron 9B (壁打ち・日本語)', cmd = lms_chat('nvidia-nemotron-nano-9b-v2-japanese') },
-    { id = 'lms-gemma',     label = '🤖 LLM: Gemma 4 E4B (画像可)',   cmd = lms_chat('google/gemma-4-e4b') },
-    -- Qwen3.6 35B-A3B (Q4_K_M / ~22GB / MoE active~3B)。ローカルコーダー枠。
-    { id = 'lms-qwen',      label = '🤖 LLM: Qwen3.6 35B-A3B (コーダー)', cmd = lms_chat('qwen/qwen3.6-35b-a3b') },
-    -- LFM2.5 2.6B (LiquidAI, Q5_K_M / 1.94GB / 最大128kコンテキスト)。軽作業・高速。
-    { id = 'lms-lfm',       label = '🤖 LLM: LFM2.5 2.6B (軽作業・高速)', cmd = lms_chat('lfm2.5-2.6b') },
-    -- ローカルLLMエージェント（opencode 経由。ファイル読み書き・編集まで可能）。cwd=C:\claude。
-    -- チャット側と同じ4モデルをすべて 🛠 対応。opencode.json の provider.lmstudio.models と modelKey を揃えること。
-    -- LFM2.5 は tool use 学習済みで、LM Studio の OpenAI 互換APIに read_file 定義を渡すと
-    -- 正しく tool_calls を返すことを確認済み（2026-08-05 検証。ロードも約6秒と速い）。
-    -- Qwen3.6-35B-A3B は ~22GB のため agent 起動時の load が重い。context は他と同じ 32k 既定。
-    { id = 'oc-nemotron',   label = '🛠 LLM Agent: Nemotron 9B (壁打ち・ファイル可)', cmd = lms_agent('nvidia-nemotron-nano-9b-v2-japanese') },
-    { id = 'oc-gemma',      label = '🛠 LLM Agent: Gemma 4 E4B (画像・ファイル可)', cmd = lms_agent('google/gemma-4-e4b') },
-    { id = 'oc-qwen',       label = '🛠 LLM Agent: Qwen3.6 35B-A3B (コーダー・ファイル可)', cmd = lms_agent('qwen/qwen3.6-35b-a3b') },
-    { id = 'oc-lfm',        label = '🛠 LLM Agent: LFM2.5 2.6B (軽作業・高速)', cmd = lms_agent('lfm2.5-2.6b') },
-    -- Hermes Agent + Wiki プリフェッチ（llm-wiki＋AI作業ログの参照）。推論はLM StudioのLFM2.5のみで課金ゼロ。
-    -- hermes.exe は venv 内にありPATH未登録のためフルパスで呼ぶ。設定は %LOCALAPPDATA%\hermes\config.yaml。
-    -- 2026-08-12: ローカルLLMのツール往復は遅すぎ（9Bで1問4〜10分）かつ小型モデルはツール選択を誤るため、プリフェッチ方式に変更。
-    --   起動時に prefetch_wiki.py が Wiki索引＋直近7日のAI作業ログを wiki-session/AGENTS.md に書き出し、
-    --   Hermes が cwd の AGENTS.md として自動注入する。モデルはツールなし（-t none の警告は無害）＋思考オフで応答。
-    --   ツール不要になったため高速なLFM2.5を採用（実測96秒/問。Nemotron 9Bは同条件で4〜7分）。
-    --   Hermes は最低 64K コンテキストを要求するため --context-length 65536 を維持すること。
-    { id = 'hermes',        label = '🪽 Hermes Agent (Wiki・作業ログ参照)', cmd = '$env:PATH = "$HOME\\.lmstudio\\bin;$env:PATH"; lms server start; lms unload --all; '
-      .. 'lms load lfm2.5-2.6b --context-length 65536 --ttl 1800 --yes; '
-      .. '& "$env:LOCALAPPDATA\\Programs\\Python\\Python313\\python.exe" C:\\claude\\hermes\\prefetch_wiki.py; cd C:\\claude\\hermes\\wiki-session; '
-      .. '& "$env:LOCALAPPDATA\\hermes\\hermes-agent\\venv\\Scripts\\hermes.exe" chat --provider lmstudio --model lfm2.5-2.6b --toolsets none --reasoning none' },
-    { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'PowerShell',        cmd = '' },
   }
 else
   launcher_apps = {
+    -- 個人=既定の ~/.claude / 会社=~/.claude-work（Windows とは対応が逆。統一しない方針）
     { id = 'claude',     label = 'Claude Code',       cmd = 'unset CLAUDE_CONFIG_DIR; claude' },
     { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude --model opus' },
-    { id = 'claude-clean', label = 'Claude Code (Clean)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
-    { id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
+    -- Codex は herdr-bootstrap.sh と同じ codex-account.sh で会社/個人を切り替える。
+    -- 会社=~/.codex-work / 個人=既定の ~/.codex（2026-09-24 実機確認）
+    { id = 'codex',      label = 'Codex CLI (会社)',   cmd = 'cd ~/claude && ~/dotfiles/wezterm/codex-account.sh work' },
+    { id = 'codex-personal', label = 'Codex CLI (個人)', cmd = 'cd ~/claude && ~/dotfiles/wezterm/codex-account.sh personal' },
     { id = 'gemini',     label = 'Gemini CLI',        cmd = 'cd ~/claude && gemini' },
+    -- agy は ~/.local/bin/agy（2026-09-24 実機確認: v1.2.2、ログイン済み）
+    { id = 'antigravity', label = 'Antigravity CLI (Auto)', cmd = 'cd ~/claude && agy --mode accept-edits --dangerously-skip-permissions' },
+    { id = 'grok',       label = 'Grok Build',         cmd = 'cd ~/claude && grok' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd ~/dotfiles && lazygit' },
+    { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'dashboard',  label = 'Todoist',            cmd = 'bash ~/dotfiles/wezterm/todoist.sh' },
     { id = 'calendar',   label = '📅 カレンダー',        cmd = 'bash ~/dotfiles/wezterm/calendar.sh' },
-    { id = 'codex',      label = 'Codex CLI',          cmd = 'cd ~/claude && codex' },
-    { id = 'grok',       label = 'Grok Build',         cmd = 'cd ~/claude && grok' },
-    { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'shell',      label = 'Shell',             cmd = '' },
   }
 end
+
+-- ===== F9 から外した項目（退避リスト） =====
+-- このテーブルはどこからも参照していない（メニューには表示されない）。
+-- 戻すときは、該当行を上の launcher_apps へ移すだけでよい。
+-- 各行の archived は退避日、reason は退避理由。
+local archived_launcher_apps = {
+  -- ▼ Windows
+  -- 旧世代モデルを明示指定して起動する枠（既定の opus は最新世代に追随するため別枠にしていた）。
+  { os = 'windows', archived = '2026-09-24', reason = 'Opus 4.6 指定はもう使わない',
+    id = 'claude-opus46', label = 'Claude Code (Opus 4.6)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-personal"; claude --model claude-opus-4-6' },
+  { os = 'windows', archived = '2026-09-24', reason = '未使用',
+    id = 'claude-clean', label = 'Claude Code (Clean)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
+  { os = 'windows', archived = '2026-09-24', reason = '未使用',
+    id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = 'cd C:\\claude; $env:CLAUDE_CONFIG_DIR = "$HOME\\.claude-work-clean"; claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
+  -- AI委譲キューはペイン注入ではなく、必要時だけ会社Claudeを非対話起動する。WezTerm常駐には依存しない。
+  { os = 'windows', archived = '2026-09-24', reason = '未使用',
+    id = 'delegate-queue', label = '📨 AI委譲キュー', cmd = 'cd C:\\claude; ai-delegate watch' },
+  -- agmsg 本体はエージェント間連絡で使われている（bootstrap が AGMSG_AGENT を設定）。退避したのは閲覧用の表示画面だけ。
+  { os = 'windows', archived = '2026-09-24', reason = '閲覧画面は未使用（agmsg 本体は稼働中）',
+    id = 'agmsg-watch', label = '📨 agmsg 未ack一覧', cmd = 'cd C:\\claude; agmsg watch' },
+  { os = 'windows', archived = '2026-09-24', reason = 'ほぼ未使用',
+    id = 'fugu', label = '🐟 Sakana Fugu', cmd = '$env:CODEX_HOME = "$HOME\\.codex-personal"; cd C:\\claude; doppler run --project sakana-ai --config prd -- codex-fugu' },
+  { os = 'windows', archived = '2026-09-24', reason = 'ほぼ未使用',
+    id = 'fugu-ultra', label = '🐡 Sakana Fugu Ultra', cmd = '$env:CODEX_HOME = "$HOME\\.codex-personal"; cd C:\\claude; doppler run --project sakana-ai --config prd -- codex-fugu-ultra' },
+  -- ローカルLLM (LM Studio) の素のチャット。初回は選択モデルのメモリ読込に時間がかかる（9B級で1分前後、35B-A3Bは更に重い）。
+  -- ※ こちらはファイルを読めない（lms chat にツール実行の仕組みがない）。ファイル操作は opencode 側を使う。
+  -- modelKey は `lms ls --json` 準拠（2026-08-07 時点: Nemotron / Gemma / Qwen3.6-35B-A3B / LFM）。
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'lms-nemotron', label = '🤖 LLM: Nemotron 9B (壁打ち・日本語)', cmd = lms_chat('nvidia-nemotron-nano-9b-v2-japanese') },
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'lms-gemma', label = '🤖 LLM: Gemma 4 E4B (画像可)', cmd = lms_chat('google/gemma-4-e4b') },
+  -- Qwen3.6 35B-A3B (Q4_K_M / ~22GB / MoE active~3B)。ローカルコーダー枠。
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'lms-qwen', label = '🤖 LLM: Qwen3.6 35B-A3B (コーダー)', cmd = lms_chat('qwen/qwen3.6-35b-a3b') },
+  -- LFM2.5 2.6B (LiquidAI, Q5_K_M / 1.94GB / 最大128kコンテキスト)。軽作業・高速。
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'lms-lfm', label = '🤖 LLM: LFM2.5 2.6B (軽作業・高速)', cmd = lms_chat('lfm2.5-2.6b') },
+  -- ローカルLLMエージェント（opencode 経由。ファイル読み書き・編集まで可能）。cwd=C:\claude。
+  -- opencode.json の provider.lmstudio.models と modelKey を揃えること。
+  -- LFM2.5 は tool use 学習済みで、LM Studio の OpenAI 互換APIに read_file 定義を渡すと
+  -- 正しく tool_calls を返すことを確認済み（2026-08-05 検証。ロードも約6秒と速い）。
+  -- Qwen3.6-35B-A3B は ~22GB のため agent 起動時の load が重い。context は他と同じ 32k 既定。
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'oc-nemotron', label = '🛠 LLM Agent: Nemotron 9B (壁打ち・ファイル可)', cmd = lms_agent('nvidia-nemotron-nano-9b-v2-japanese') },
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'oc-gemma', label = '🛠 LLM Agent: Gemma 4 E4B (画像・ファイル可)', cmd = lms_agent('google/gemma-4-e4b') },
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'oc-qwen', label = '🛠 LLM Agent: Qwen3.6 35B-A3B (コーダー・ファイル可)', cmd = lms_agent('qwen/qwen3.6-35b-a3b') },
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち',
+    id = 'oc-lfm', label = '🛠 LLM Agent: LFM2.5 2.6B (軽作業・高速)', cmd = lms_agent('lfm2.5-2.6b') },
+  -- Hermes Agent + Wiki プリフェッチ（llm-wiki＋AI作業ログの参照）。推論はLM StudioのLFM2.5のみで課金ゼロ。
+  -- hermes.exe は venv 内にありPATH未登録のためフルパスで呼ぶ。設定は %LOCALAPPDATA%\hermes\config.yaml。
+  -- 2026-08-12: ローカルLLMのツール往復は遅すぎ（9Bで1問4〜10分）かつ小型モデルはツール選択を誤るため、プリフェッチ方式に変更。
+  --   起動時に prefetch_wiki.py が Wiki索引＋直近7日のAI作業ログを wiki-session/AGENTS.md に書き出し、
+  --   Hermes が cwd の AGENTS.md として自動注入する。モデルはツールなし（-t none の警告は無害）＋思考オフで応答。
+  --   ツール不要になったため高速なLFM2.5を採用（実測96秒/問。Nemotron 9Bは同条件で4〜7分）。
+  --   Hermes は最低 64K コンテキストを要求するため --context-length 65536 を維持すること。
+  { os = 'windows', archived = '2026-09-24', reason = 'ローカルLLM再構築待ち（LM Studio 依存）',
+    id = 'hermes', label = '🪽 Hermes Agent (Wiki・作業ログ参照)', cmd = '$env:PATH = "$HOME\\.lmstudio\\bin;$env:PATH"; lms server start; lms unload --all; '
+      .. 'lms load lfm2.5-2.6b --context-length 65536 --ttl 1800 --yes; '
+      .. '& "$env:LOCALAPPDATA\\Programs\\Python\\Python313\\python.exe" C:\\claude\\hermes\\prefetch_wiki.py; cd C:\\claude\\hermes\\wiki-session; '
+      .. '& "$env:LOCALAPPDATA\\hermes\\hermes-agent\\venv\\Scripts\\hermes.exe" chat --provider lmstudio --model lfm2.5-2.6b --toolsets none --reasoning none' },
+  -- ▼ Mac
+  { os = 'mac', archived = '2026-09-24', reason = '未使用',
+    id = 'claude-clean', label = 'Claude Code (Clean)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
+  { os = 'mac', archived = '2026-09-24', reason = '未使用',
+    id = 'claude-work-clean', label = 'Claude Code (会社 Clean)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work-clean claude --model opus --tools default --disable-slash-commands --strict-mcp-config --setting-sources user' },
+  -- 旧 Mac の Codex は素の `codex`（アカウント分離なし）だった。2026-09-24 に codex-account.sh 経由へ変更。
+  { os = 'mac', archived = '2026-09-24', reason = '会社/個人の2項目に置き換え',
+    id = 'codex-plain', label = 'Codex CLI', cmd = 'cd ~/claude && codex' },
+}
 
 -- InputSelector用のchoicesを構築
 local launcher_choices = {}
@@ -163,34 +205,55 @@ for _, app in ipairs(launcher_apps) do
   launcher_cmds[app.id] = app.cmd
 end
 
--- ===== レイアウト（2026-09-03: WezTerm は Herdr を表示する薄い箱） =====
--- WezTerm は分割せず、唯一のペインで Herdr 本体(TUI)を全画面起動する。
--- レイアウトもワークスペース切替も Herdr 自身が持つ（サイドバーの spaces をクリック）。
--- ┌────────┬──────────────────────────────────────────┐
--- │ spaces │  フォーカス中ワークスペースのエージェント群 │
--- │Control │  （Herdr が 2x2 等に自動レイアウト）        │
--- │ 🦍 Exec │                                          │
--- │ Extra  │  切り替えはサイドバーの spaces をクリック    │
--- └────────┴──────────────────────────────────────────┘
+-- 新しいタブでコマンドを起動するアクションを作る（F9 と直接キーの両方から使う）。
+-- Windows: powershell -Command（プロファイルは読む＝従来の対話シェルと同じ環境）。終了でタブも閉じる。
+-- Mac: zsh -lic（ログイン＋対話で ~/.zshrc を読む＝従来の対話シェルと同じ PATH）。終了でタブも閉じる。
+local launcher_cwd = is_windows and 'C:\\claude' or (wezterm.home_dir .. '/claude')
+local function spawn_in_new_tab(cmd)
+  if not cmd or cmd == '' then
+    return act.SpawnCommandInNewTab { cwd = launcher_cwd }
+  end
+  local args
+  if is_windows then
+    args = { 'powershell.exe', '-NoLogo', '-Command', cmd }
+  else
+    args = { '/bin/zsh', '-lic', cmd }
+  end
+  return act.SpawnCommandInNewTab { args = args, cwd = launcher_cwd }
+end
+
+-- ===== レイアウト（2026-09-24 更新: WezTerm は Herdr を表示する箱＋作業用タブ） =====
+-- 起動直後は分割せず、唯一のペインで Herdr 本体(TUI)を全画面起動する（1枚目のタブ）。
+-- レイアウトもワークスペース切替も Herdr 自身が持つ（サイドバーの spaces をクリック、または Ctrl+Shift+1〜4）。
+-- 自分の作業用アプリは F9 で「新しいタブ」に開く。Herdr のタブには何も送らない。
+-- ┌──────────┬──────────────────────────────────────────┐
+-- │ spaces   │  フォーカス中ワークスペースのエージェント群 │
+-- │ デフォルト│  （Herdr が 2x2 等に自動レイアウト）        │
+-- │ Extra    │                                          │
+-- │ 🦍 EXEC  │  切り替えはサイドバーの spaces をクリック    │
+-- │ 🦍 受付  │                                          │
+-- └──────────┴──────────────────────────────────────────┘
 --   起動時に herdr-bootstrap（-ConfigureOnly / --configure-only）をバックグラウンドで走らせ、
 --   サーバー起動→ワークスペース/ペイン構成→エージェント起動まで行う。
 --   その完了をペイン側で待ってから herdr TUI クライアントを起動する。
---   Herdrのワークスペース（herdr-bootstrap が構築）:
---     w1 CONTROL / ENTRY : Commander / Sol / Utility / Status（2x2）
---     w2 🦍 EXECUTION    : Supervisor / Reviewer A / Worker A / Worker B（2x2）
---     w3 Extra            : Grok / Antigravity CLI / Claude Work - Extra /
---                        Local LLM - Extra（Win）または Codex - Extra（Mac）（2x2）
---     w4 Local LLM     : LFM/Qwen/Gemma/Nemotron スロット（Windows のみ）
+--   Herdrのワークスペース（herdr-bootstrap が構築。Windows / Mac 共通の並び）:
+--     w1 デフォルト    : Commander / Sol / Utility / Codex Work - Main（2x2）
+--     w2 Extra         : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra（2x2）
+--     w3 🦍 EXECUTION  : Supervisor / Reviewer A / Worker A / Worker B（2x2）
+--     w4 🦍 受付       : Loop Inbox Receiver（Windows）/ 空き枠（Mac。受付の仕組みは Portable Gorilla 側で検討）
+--   ※ w3 のラベル「🦍 EXECUTION」と4役の同居は変更しないこと。
+--      loop-inbox/loop_reset_execution.py がこのラベル1つで4役をまとめて探している（2026-09-24 調査）。
+--      制御と実行の分離、Worker 追加（w5 以降に置く想定）は🦍ループ本体の別課題。
+--   ※ Codex 会社の2枠は「- Main」「- Extra」と先頭が一致しない名前にする
+--      （ループの宛先探しがペイン名の前方一致のため、取り違え防止）。
+--   ※ Local LLM ワークスペースは 2026-09-24 に廃止（再構築予定）。
 --   ※ 相談窓口は Commander。実行は Task Packet を pending へ投入して Supervisor に渡す。
 --      Supervisorへ直接相談せず、Supervisor自身も成果物を作らない。
---   ※ Mac の Local LLM ワークスペースは LM Studio / opencode 未導入のため作らない。
 --   ※ Extra を常駐させたくないときは herdr-bootstrap に --skip-extra / -SkipExtra を渡す。
 --      Reviewer A を常駐させたくないときは --skip-review / -SkipReview を渡す。
 --   ※ ワークスペース番号は herdr の作成順で決まる（並べ替えコマンドが無い）。
 --      既存セッションへ後から追加すると末尾に付くため、番号どおりに
 --      並べたい場合は herdr server を作り直してから bootstrap を走らせる。
---   ※ Todoist / カレンダー / yazi / lazygit / Shell は F9 ランチャーで随時起動する。
---      F9ランチャーはHerdr管理外で、現在ペインにアプリを直接起動する。
 wezterm.on('gui-startup', function(cmd)
   -- Herdrブートストラップ(ConfigureOnly)をバックグラウンドで実行。
   -- 無言で落ちると原因を追えないため、出力は必ずログへ落とす。
@@ -362,7 +425,8 @@ config.cursor_blink_ease_in = 'Constant'
 config.cursor_blink_ease_out = 'Constant'
 config.animation_fps = 10
 config.automatically_reload_config = true
--- 2026-06-22: ④Grok Build は TUI が背景色でセルを塗りつぶすため壁紙が透けない。
+-- 2026-06-22: Grok Build の TUI（旧 WezTerm 分割構成の④ペイン）が背景色でセルを塗りつぶし、壁紙が透けなかったため導入。
+-- 現在は Herdr TUI 全体の見た目にも効いている（値の見直しは壁紙の整理時に判断する）。
 -- WezTerm はペイン個別の透過を持たないので、色付きセル背景の不透明度を全体で下げて透かす。
 -- 副作用: 全ペインの選択範囲/シンタックス・差分ハイライト等の色付き背景も薄くなる（既定背景の通常テキストは無変化）。
 config.text_background_opacity = 0.3
@@ -448,14 +512,6 @@ else
       },
     }
   end
-end
-
--- ダッシュボード起動コマンド
-local dashboard_cmd
-if is_windows then
-  dashboard_cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1\r\n'
-else
-  dashboard_cmd = 'bash ~/dotfiles/wezterm/todoist.sh\r\n'
 end
 
 -- モデル指定解除
@@ -660,18 +716,14 @@ local brightness_choices = {
 }
 
 -- ランチャー（F9 / Cmd+Shift+9）共通アクション
+-- 選んだアプリを新しいタブで起動する。現在ペイン（Herdr）には何も送らない。
+-- 旧方式（2026-09-24 まで）: 現在ペインへ Ctrl+C x2 + Enter を送ってからコマンドを入力していた。
 local launcher_action = act.InputSelector {
-  title = '  Launch App',
+  title = '  Launch App (新しいタブ)',
   choices = launcher_choices,
   action = wezterm.action_callback(function(window, pane, id, label)
     if not id then return end
-    local cmd = launcher_cmds[id]
-    -- 現在のプロセスを停止 (Ctrl+C x2 + Enter)
-    pane:send_text('\x03\x03\r')
-    -- 新しいコマンドを送信（shell以外）
-    if cmd ~= '' then
-      pane:send_text(cmd .. '\r')
-    end
+    window:perform_action(spawn_in_new_tab(launcher_cmds[id]), pane)
   end),
 }
 
@@ -689,7 +741,8 @@ config.keys = {
   -- Pane zoom: 現在ペインを一時最大化⇔もう一度で復帰 (Ctrl+Shift+Z)
   { key = 'z', mods = 'CTRL|SHIFT', action = act.TogglePaneZoomState },
   -- Herdr AI Hub: 同じdefaultセッションを専用WezTermウィンドウで開く。
-  -- サーバー側のペイン実体は共有されるため、既存7ペインと別窓の双方から確認できる。
+  -- サーバー側のペイン実体は共有されるため、1枚目のタブの Herdr と別窓の双方から確認できる。
+  -- （作業用タブの隣に Herdr を並べて見たいときに使う）
   { key = 'h', mods = 'CTRL|SHIFT', action = act.SpawnCommandInNewWindow {
     args = is_windows and { herdr_exe }
       or { '/bin/bash', '-c', mac_path_prefix .. 'exec "' .. herdr_exe .. '"' },
@@ -700,12 +753,13 @@ config.keys = {
   -- ズームON→OFFを瞬時に往復させ、ペイン境界の再計算・再描画を強制する (Ctrl+Shift+R)
   { key = 'r', mods = 'CTRL|SHIFT', action = act.Multiple { act.TogglePaneZoomState, act.TogglePaneZoomState } },
   -- Pane select: 番号オーバーレイでペインへジャンプ (F8)
-  -- ※表示される番号は分割順の pane index。公式呼称①〜⑦とは一致しない。
+  -- ※表示される番号は WezTerm 側の分割順（Herdr 内のペインは対象外）。
   { key = 'F8', mods = 'NONE', action = act.PaneSelect { alphabet = '1234567890', mode = 'Activate' } },
-  -- Quick launch: lazygit (Ctrl+Shift+G)
-  { key = 'g', mods = 'CTRL|SHIFT', action = act.SendString('cd ~/dotfiles; lazygit\r\n') },
-  -- Quick launch: Sangha Dashboard (Ctrl+Shift+S)
-  { key = 's', mods = 'CTRL|SHIFT', action = act.SendString(dashboard_cmd) },
+  -- Quick launch: lazygit / Todoist を F9 と同じく新しいタブで起動 (Ctrl+Shift+G / Ctrl+Shift+S)
+  -- 旧方式（2026-09-24 まで）は現在ペインへ文字列を送っており、Herdr 表示中は
+  -- フォーカス中のエージェントへの入力になってしまうため変更した。
+  { key = 'g', mods = 'CTRL|SHIFT', action = spawn_in_new_tab(launcher_cmds['lazygit']) },
+  { key = 's', mods = 'CTRL|SHIFT', action = spawn_in_new_tab(launcher_cmds['dashboard']) },
   -- Theme picker: カラースキーム一時切り替え
   -- Win: Ctrl+Shift+F1 / Mac: Cmd+Shift+T (macOS が F1〜F4 を奪うため)
   { key = is_windows and 'F1' or 't', mods = is_windows and 'CTRL|SHIFT' or 'CMD|SHIFT',
@@ -851,8 +905,10 @@ config.keys = {
       end),
     },
   },
-  -- Herdr workspace switch: Ctrl+Shift+1/2/3/4 で Core/Review/Extra/Local LLM を切替
+  -- Herdr workspace switch: Ctrl+Shift+1/2/3/4 で デフォルト / Extra / 🦍 EXECUTION / 🦍 受付 を切替（Win/Mac 共通）
   -- 番号は herdr の作成順（bootstrap の WORKSPACE_PLAN / $workspacePlan の並び）に対応する。
+  -- ※ bootstrap の並び替えと herdr server の作り直しが済むまでは、旧構成の順番で動く。
+  -- ※ WezTerm 標準の「Ctrl+Shift+数字でタブ切替」を上書きしている。タブ移動は Ctrl+Tab / Ctrl+Shift+Tab を使う。
   { key = '1', mods = 'CTRL|SHIFT', action = wezterm.action_callback(function()
     wezterm.background_child_process { herdr_exe, 'workspace', 'focus', 'w1' }
   end) },
@@ -877,8 +933,9 @@ config.keys = {
 -- Codex(5h/週) の使用率を表示する。
 -- ai_usage.ps1 が $TEMP\wez_ai_status.txt（1行目=UNIX秒, 2行目=本文）を書き、
 -- ここではそれを読むだけ（同期 run_child_process はUIが固まるため廃止。2026-07-13）。
--- 鮮度は通常 ⑤ペインの ai_usage_pane.ps1（30秒周期）が保つ。古いときだけ
--- background_child_process で ai_usage.ps1 を非同期起動して次回に備える。
+-- ファイルが古い（120秒超）ときに background_child_process で ai_usage.ps1 を非同期起動し、次回に備える。
+-- 現在の更新元はこの処理だけ（2026-09-24 調査）。旧構成では⑤ペインの ai_usage_pane.ps1（30秒周期）も
+-- 更新していたが、今はどこからも起動されていない。
 if is_windows then
   local ai_status = ''
   local ai_read_last = 0
