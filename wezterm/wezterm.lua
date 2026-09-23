@@ -216,7 +216,8 @@ wezterm.on('gui-startup', function(cmd)
 
   -- 分割しない。ブートストラップでサーバーが上がるのを待ってから Herdr 本体(TUI)を起動。
   if is_windows then
-    pane:send_text('foreach ($i in 1..120) { $s = (& "' .. herdr_exe .. '" status server 2>$null | Out-String); if ($LASTEXITCODE -eq 0 -and $s -match "status: +running" -and (Test-Path "$env:APPDATA/herdr/herdr-client.sock")) { break }; Start-Sleep -Milliseconds 500 }; & "' .. herdr_exe .. '"\r\n')
+    -- 前回終了時の client socket が残っていても、今回生成された API socket より新しくなるまで待つ。
+    pane:send_text('$api = "$env:APPDATA/herdr/herdr.sock"; $client = "$env:APPDATA/herdr/herdr-client.sock"; foreach ($i in 1..120) { $s = (& "' .. herdr_exe .. '" status server 2>$null | Out-String); if ($LASTEXITCODE -eq 0 -and $s -match "status: +running" -and (Test-Path $api) -and (Test-Path $client) -and (Get-Item $client).LastWriteTimeUtc -ge (Get-Item $api).LastWriteTimeUtc) { break }; Start-Sleep -Milliseconds 500 }; & "' .. herdr_exe .. '"\r\n')
   else
     pane:send_text('for _ in $(seq 1 120); do "' .. herdr_exe .. '" status server 2>/dev/null | grep -qE "status:[[:space:]]+running" && break; sleep 0.5; done; exec "' .. herdr_exe .. '"\r')
   end

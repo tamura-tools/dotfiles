@@ -223,9 +223,13 @@ function Start-AgentIfMissing {
     if (-not $Pane) {
         throw "Required pane is missing: $DisplayName"
     }
-    if ($LiveAgentPaneIds -contains $Pane.pane_id) {
-        Write-Host "Already running: $DisplayName" -ForegroundColor DarkGray
+    $identity = Get-PaneIdentity $Pane.pane_id $Command
+    if ($identity.state -eq 'matching') {
+        Write-Host "Already running (process / role / env verified): $DisplayName" -ForegroundColor DarkGray
         return
+    }
+    if ($identity.state -ne 'empty') {
+        throw "Pane $($Pane.pane_id) is occupied by an unverified session ($DisplayName): $($identity.reason). Stop/restart the correct role before bootstrap."
     }
 
     Write-Host "Starting: $DisplayName" -ForegroundColor Cyan
@@ -233,6 +237,16 @@ function Start-AgentIfMissing {
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to start: $DisplayName"
     }
+}
+
+function Get-PaneIdentity {
+    param([string]$PaneId, [string]$Command = ' ')
+    $checker = Join-Path $workRoot 'loop-inbox\loop_process_identity.py'
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Command))
+    # 環境が読めない場合も occupied。タイトルだけで稼働済みとはしない。
+    $raw = & py -3.13 $checker --pane $PaneId --command-b64 $encoded
+    if ($LASTEXITCODE -ne 0) { throw "Process identity check failed: $PaneId" }
+    return ($raw | ConvertFrom-Json)
 }
 
 # ---------- メイン ----------
@@ -304,12 +318,22 @@ Start-AgentIfMissing (Get-PaneByLabel $control 'Utility - Claude Personal') $cla
 $loopIntakeScript = Join-Path $workRoot 'loop-inbox\loop_intake.py'
 $statusPane = Get-PaneByLabel $control 'Status - Shell'
 if ($statusPane -and (Test-Path $loopIntakeScript)) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     & py -3.13 $loopIntakeScript watch-status *> $null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host 'Already running: Loop Inbox Receiver (watch)' -ForegroundColor DarkGray
+    $watchExit = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+    if ($watchExit -eq 0) {
+        $watchIdentity = (& py -3.13 (Join-Path $workRoot 'loop-inbox\loop_process_identity.py') --pane $statusPane.pane_id --watch) | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $watchIdentity.state -ne 'matching') {
+            throw "Receiver identity mismatch: $($watchIdentity.reason)"
+        }
+        Write-Host 'Already running (PID / heartbeat / owner / pane verified): Loop Inbox Receiver (watch)' -ForegroundColor DarkGray
+    } elseif ((Get-PaneIdentity $statusPane.pane_id).state -ne 'empty') {
+        throw "Status pane $($statusPane.pane_id) is occupied. Receiver command was not sent."
     } else {
         Write-Host 'Starting: Loop Inbox Receiver (watch)' -ForegroundColor Cyan
-        & $herdrExe pane run $statusPane.pane_id "Set-Location $workRoot; py -3.13 $loopIntakeScript watch --interval 30"
+        & $herdrExe pane run $statusPane.pane_id "Set-Item Env:LOOP_WATCH_OWNER bootstrap; Set-Location $workRoot; py -3.13 $loopIntakeScript watch --interval 30"
         if ($LASTEXITCODE -ne 0) {
             throw 'Failed to start: Loop Inbox Receiver'
         }
