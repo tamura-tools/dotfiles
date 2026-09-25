@@ -22,15 +22,18 @@ $workRoot = 'C:\claude'
 #   w2 Extra        : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra
 #   w3 🦍 EXECUTION : Supervisor / Reviewer A / Worker A / Worker B（中身は変更なし）
 #   w4 🦍 受付      : Loop Inbox Receiver（旧 Status 枠の loop_intake.py watch を移設）
-# ※「🦍 EXECUTION」のラベルと4役のペイン名は変更しないこと。
-#   loop-inbox/loop_reset_execution.py がこのラベル1つで4役をまとめて探している。
+#   w5 🦍 EXECUTION 2 : Execution Slot 2。4役・ペイン名は w3 と同じ（2026-09-24 Execution Slots）
+# ※「🦍 EXECUTION」「🦍 EXECUTION 2」のラベルと4役のペイン名は変更しないこと。
+#   loop-inbox/_common.py の SLOTS（slot 1 / slot 2 の契約）と一致させる。Mac 版 herdr-bootstrap.sh も同じ契約。
+#   slot 2 の役割名は slot 1 の名前に `-2` を付ける（AGMSG_AGENT / claude --name）。LOOP_SLOT は 1 / 2。
 # herdr には並べ替えコマンドが無く、番号は作成順で決まる。新規セッションでは
 # この順に作られ、既存セッションでは不足分が末尾に追加される。
 $workspacePlan = @(
     'デフォルト',
     'Extra',
     '🦍 EXECUTION',
-    '🦍 受付'
+    '🦍 受付',
+    '🦍 EXECUTION 2'
     # 2026-09-24 退避：ローカルLLM再構築待ち
     # 'Local LLM'
 )
@@ -268,6 +271,7 @@ $control   = $workspaces['デフォルト']
 $extra     = $workspaces['Extra']
 $execution = $workspaces['🦍 EXECUTION']
 $reception = $workspaces['🦍 受付']
+$execution2 = $workspaces['🦍 EXECUTION 2']
 # 2026-09-24 退避：ローカルLLM再構築待ち
 # $local  = $workspaces['Local LLM']
 
@@ -293,15 +297,18 @@ Set-PaneLabels $extra @(
 )
 
 # EXECUTION: 入力はTask Packetのみ。Supervisorは実装・文章生成をせずWorkerへ委譲する。
-# MVPは1 Loopずつ処理し、ReviewerはAのみ。Reviewer BやLuna Workerは置かない。
-# ラベルは loop-inbox/loop_reset_execution.py の ROLES と一致させること（変更禁止）。
-Initialize-PaneGrid $execution 4
-Set-PaneLabels $execution @(
+# 独立 run を最大2本（Execution Slot 1 = 🦍 EXECUTION / slot 2 = 🦍 EXECUTION 2）。1 slot = 1 run。ReviewerはAのみ。
+# ラベルは loop-inbox/loop_reset_execution.py の ROLES と一致させること（変更禁止。両 slot 共通）。
+$executionLabels = @(
     'Supervisor - Claude Work / Opus 5',
     'Reviewer A - Claude Work / Opus 5',
     'Worker A - Gemini 3.8 Flash',
     'Worker B - Claude Work / Sonnet 5'
 )
+Initialize-PaneGrid $execution 4
+Set-PaneLabels $execution $executionLabels
+Initialize-PaneGrid $execution2 4
+Set-PaneLabels $execution2 $executionLabels
 
 # 🦍 受付: Loop Inbox Receiver の1枠（旧 デフォルト/Status 枠から移設。2026-09-24）
 Initialize-PaneGrid $reception 1
@@ -321,10 +328,19 @@ $codexPersonal = "Set-Item Env:AGMSG_AGENT codex-sol; Set-Location C:\claude; & 
 $claudeWorkExtra = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:AGMSG_AGENT claude-extra; Set-Location C:\claude; claude --name claude-extra"
 $grok = 'Set-Location C:\claude; grok'
 $antigravity = "Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.exe"
-$loopSupervisor = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:AGMSG_AGENT loop-supervisor; Set-Location C:\claude; claude --model opus --name loop-supervisor"
-$loopReviewer = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:AGMSG_AGENT loop-review-a; Set-Location C:\claude; claude --model opus --name loop-review-a"
-$loopWorkerGemini = "Set-Item Env:AGMSG_AGENT loop-worker-gemini; Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.exe --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
-$loopWorkerSonnet = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:AGMSG_AGENT loop-worker-sonnet; Set-Location C:\claude; claude --model sonnet --name loop-worker-sonnet"
+# Execution Slot 1（🦍 EXECUTION）。loop_reset_execution.py がこの4変数を起動コマンドの正本として読む
+# Worker A（Gemini / Writer）は staging 方式（loop-inbox/loop_writer.py）。専用 HOME（~/.agents/loop-writer/slot-<n>/home）の
+# settings.json / hooks.json で writer_guard.py が全ツールを判定する（明示許可以外 deny、run_command 全面 deny、
+# 書き込みは run の writer-out 内の宣言済み成果物だけ）。HOME を差し替えるため LOOP_INBOX_STATE を明示する（2026-09-24）
+$loopSupervisor = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-supervisor; Set-Location C:\claude; claude --model opus --name loop-supervisor"
+$loopReviewer = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-review-a; Set-Location C:\claude; claude --model opus --name loop-review-a"
+$loopWorkerGemini = "Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-worker-gemini; Set-Item Env:LOOP_INBOX_STATE $userRoot\.agents\loop-inbox; Set-Item Env:USERPROFILE $userRoot\.agents\loop-writer\slot-1\home; Set-Item Env:HOME $userRoot\.agents\loop-writer\slot-1\home; py -3.13 C:\claude\loop-inbox\loop_writer.py ensure-profile --slot 1 --home $userRoot\.agents\loop-writer\slot-1\home; Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.exe --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
+$loopWorkerSonnet = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-worker-sonnet; Set-Location C:\claude; claude --model sonnet --name loop-worker-sonnet"
+# Execution Slot 2（🦍 EXECUTION 2）。slot 1 と同じコマンドで、役割名に -2・LOOP_SLOT 2（変数名は末尾 2）
+$loopSupervisor2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-supervisor-2; Set-Location C:\claude; claude --model opus --name loop-supervisor-2"
+$loopReviewer2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-review-a-2; Set-Location C:\claude; claude --model opus --name loop-review-a-2"
+$loopWorkerGemini2 = "Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-worker-gemini-2; Set-Item Env:LOOP_INBOX_STATE $userRoot\.agents\loop-inbox; Set-Item Env:USERPROFILE $userRoot\.agents\loop-writer\slot-2\home; Set-Item Env:HOME $userRoot\.agents\loop-writer\slot-2\home; py -3.13 C:\claude\loop-inbox\loop_writer.py ensure-profile --slot 2 --home $userRoot\.agents\loop-writer\slot-2\home; Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.exe --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
+$loopWorkerSonnet2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-worker-sonnet-2; Set-Location C:\claude; claude --model sonnet --name loop-worker-sonnet-2"
 # Codex 会社（~/.codex-work）。自動承認フラグ（--approve-for-me）は付けない（常駐枠のため）。
 # AGMSG_AGENT: Main は agmsg 登録済みの `codex`（旧 会社Codex）を使う。Extra の `codex-extra` は
 # Mac 版と同じ名前だが agmsg 未登録のため、このペインで agmsg を使うとエラーになる（2026-09-24 時点）。
@@ -377,6 +393,14 @@ if (-not $SkipReview) {
 }
 Start-AgentIfMissing (Get-PaneByLabel $execution 'Worker A - Gemini 3.8 Flash') $loopWorkerGemini 'Worker A - Gemini 3.8 Flash' $liveAgentPaneIds
 Start-AgentIfMissing (Get-PaneByLabel $execution 'Worker B - Claude Work / Sonnet 5') $loopWorkerSonnet 'Worker B - Sonnet 5' $liveAgentPaneIds
+
+# --- EXECUTION 2（Execution Slot 2）---
+Start-AgentIfMissing (Get-PaneByLabel $execution2 'Supervisor - Claude Work / Opus 5') $loopSupervisor2 'Supervisor (slot 2)' $liveAgentPaneIds
+if (-not $SkipReview) {
+    Start-AgentIfMissing (Get-PaneByLabel $execution2 'Reviewer A - Claude Work / Opus 5') $loopReviewer2 'Reviewer A (slot 2)' $liveAgentPaneIds
+}
+Start-AgentIfMissing (Get-PaneByLabel $execution2 'Worker A - Gemini 3.8 Flash') $loopWorkerGemini2 'Worker A - Gemini 3.8 Flash (slot 2)' $liveAgentPaneIds
+Start-AgentIfMissing (Get-PaneByLabel $execution2 'Worker B - Claude Work / Sonnet 5') $loopWorkerSonnet2 'Worker B - Sonnet 5 (slot 2)' $liveAgentPaneIds
 
 # --- EXTRA ---
 if (-not $SkipExtra) {

@@ -8,6 +8,8 @@
 #   w2 Extra        : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra
 #   w3 🦍 EXECUTION : Supervisor / Reviewer A / Worker A / Worker B（中身は変更なし）
 #   w4 🦍 受付      : Loop Inbox Receiver 枠。Mac には loop_intake.py が無いため何も起動しない
+#   w5 🦍 EXECUTION 2 : Execution Slot 2。4役・ペイン名は w3 と同じ（2026-09-24 Execution Slots。Windows と同じ契約）
+#   ※ Mac は構成の生成まで。Loop 制御（submit / reset / wake / drain）は Windows のみ（2026-09-24 洸さん判断）
 #   （2026-09-24 再編。Windows と同じ作成順）
 #
 # CommanderはSupervisorではない。実行LoopへはTask Packetをpendingへ投入して渡す。
@@ -52,8 +54,9 @@ CODEX_ACCOUNT_SCRIPT="$HOME/dotfiles/wezterm/codex-account.sh"
 # ワークスペースは「番号順 = この並び順」で扱う。herdr には並べ替えコマンドが無く、
 # 番号は作成順で決まる。新規セッションではこの順に作られ、既存セッションでは
 # 不足分が末尾に追加される（順番を正すには herdr server の作り直しが要る）。
-# ※「🦍 EXECUTION」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
-WORKSPACE_PLAN=('デフォルト' 'Extra' '🦍 EXECUTION' '🦍 受付')
+# ※「🦍 EXECUTION」「🦍 EXECUTION 2」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
+#   契約の正本は loop-inbox/_common.py の SLOTS。slot 2 の役割名は slot 1 の名前に `-2`、LOOP_SLOT は 1 / 2。
+WORKSPACE_PLAN=('デフォルト' 'Extra' '🦍 EXECUTION' '🦍 受付' '🦍 EXECUTION 2')
 
 legacy_label_for() {
   case "$1" in
@@ -227,6 +230,7 @@ CONTROL_WS=$(resolve_workspace 0 'デフォルト')
 EXTRA_WS=$(resolve_workspace 1 'Extra')
 EXECUTION_WS=$(resolve_workspace 2 '🦍 EXECUTION')
 RECEPTION_WS=$(resolve_workspace 3 '🦍 受付')
+EXECUTION2_WS=$(resolve_workspace 4 '🦍 EXECUTION 2')
 
 # デフォルト: 相談窓口とTask Packet作成。CommanderはSupervisorではない。
 # 4枚目は旧 Status 枠を Codex 会社にする（2026-09-24）。Codex 会社の2枠は
@@ -241,11 +245,15 @@ init_pane_grid "$EXTRA_WS" 4
 apply_pane_labels "$EXTRA_WS" \
   'Grok' 'Antigravity CLI' 'Claude Work - Extra' 'Codex Work - Extra'
 
-# EXECUTION: 入力はTask Packetのみ。MVPはReviewer Aのみで1 Loopずつ処理する。
-init_pane_grid "$EXECUTION_WS" 4
-apply_pane_labels "$EXECUTION_WS" \
-  'Supervisor - Claude Work / Opus 5' 'Reviewer A - Claude Work / Opus 5' \
-  'Worker A - Gemini 3.8 Flash' 'Worker B - Claude Work / Sonnet 5'
+# EXECUTION: 入力はTask Packetのみ。独立 run を最大2本（slot 1 = 🦍 EXECUTION / slot 2 = 🦍 EXECUTION 2）。
+# 1 slot = 1 run。ReviewerはAのみ。ペイン名は両 slot 共通。
+for _ws in "$EXECUTION_WS" "$EXECUTION2_WS"; do
+  init_pane_grid "$_ws" 4
+  apply_pane_labels "$_ws" \
+    'Supervisor - Claude Work / Opus 5' 'Reviewer A - Claude Work / Opus 5' \
+    'Worker A - Gemini 3.8 Flash' 'Worker B - Claude Work / Sonnet 5'
+done
+unset _ws
 
 # 🦍 受付: Windows と同じ名前の1枠だけ作る。Mac には loop_intake.py が無いため何も起動しない。
 init_pane_grid "$RECEPTION_WS" 1
@@ -276,25 +284,31 @@ start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Codex Work - Main')" \
   'Codex Work - Main' \
   bash -c "export AGMSG_AGENT=codex; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
 
-# --- EXECUTION ---
-start_agent_if_missing "$(pane_id_by_label "$EXECUTION_WS" 'Supervisor - Claude Work / Opus 5')" \
-  'Supervisor' \
-  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=loop-supervisor; cd $WORK_ROOT && claude --model opus --name loop-supervisor"
+# --- EXECUTION（slot 1 / slot 2。slot 2 は役割名に -2、LOOP_SLOT=2。Windows の $loopSupervisor2 等と同じ契約）---
+start_execution_slot() {
+  local ws="$1" slot="$2" sfx="$3" tag="$4"
+  start_agent_if_missing "$(pane_id_by_label "$ws" 'Supervisor - Claude Work / Opus 5')" \
+    "Supervisor$tag" \
+    bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-supervisor$sfx; cd $WORK_ROOT && claude --model opus --name loop-supervisor$sfx"
 
-if [ "$SKIP_REVIEW" = false ]; then
-  start_agent_if_missing "$(pane_id_by_label "$EXECUTION_WS" 'Reviewer A - Claude Work / Opus 5')" \
-    'Reviewer A' \
-    bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=loop-review-a; cd $WORK_ROOT && claude --model opus --name loop-review-a"
-fi
+  if [ "$SKIP_REVIEW" = false ]; then
+    start_agent_if_missing "$(pane_id_by_label "$ws" 'Reviewer A - Claude Work / Opus 5')" \
+      "Reviewer A$tag" \
+      bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-review-a$sfx; cd $WORK_ROOT && claude --model opus --name loop-review-a$sfx"
+  fi
 
-# Macでも既存のagyを使う。自動承認はONだが、既存の物理deny / guardrailは変更しない。
-start_agent_if_missing "$(pane_id_by_label "$EXECUTION_WS" 'Worker A - Gemini 3.8 Flash')" \
-  'Worker A - Gemini 3.8 Flash' \
-  bash -c "export AGMSG_AGENT=loop-worker-gemini; cd $WORK_ROOT && agy --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
+  # Macでも既存のagyを使う。自動承認はONだが、既存の物理deny / guardrailは変更しない。
+  start_agent_if_missing "$(pane_id_by_label "$ws" 'Worker A - Gemini 3.8 Flash')" \
+    "Worker A - Gemini 3.8 Flash$tag" \
+    bash -c "export LOOP_SLOT=$slot AGMSG_AGENT=loop-worker-gemini$sfx; cd $WORK_ROOT && agy --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
 
-start_agent_if_missing "$(pane_id_by_label "$EXECUTION_WS" 'Worker B - Claude Work / Sonnet 5')" \
-  'Worker B - Sonnet 5' \
-  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=loop-worker-sonnet; cd $WORK_ROOT && claude --model sonnet --name loop-worker-sonnet"
+  start_agent_if_missing "$(pane_id_by_label "$ws" 'Worker B - Claude Work / Sonnet 5')" \
+    "Worker B - Sonnet 5$tag" \
+    bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-worker-sonnet$sfx; cd $WORK_ROOT && claude --model sonnet --name loop-worker-sonnet$sfx"
+}
+
+start_execution_slot "$EXECUTION_WS" 1 '' ''
+start_execution_slot "$EXECUTION2_WS" 2 '-2' ' (slot 2)'
 
 # --- EXTRA（--skip-extra で丸ごと省略できる）---
 if [ "$SKIP_EXTRA" = false ]; then
