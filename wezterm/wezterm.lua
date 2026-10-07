@@ -71,11 +71,10 @@ local function lms_agent(model, ctx)
 end
 
 -- ===== F9 ランチャー: アプリ定義 =====
--- 選んだアプリは「新しいタブ」で起動する（2026-09-24 変更）。
---   旧方式は現在ペインへ Ctrl+C x2 → コマンド入力だったが、現在ペインは Herdr の TUI で、
---   Herdr は Ctrl+C をフォーカス中のエージェントへそのまま渡すため、
---   Supervisor / Worker などの作業を中断させてしまう問題があった。
--- アプリを終了するとタブごと閉じる。cmd = '' は新しいタブで空のシェルを開く。
+-- 選んだアプリは現在選択中のエリアで起動する。
+-- Herdr 表示中は Ctrl+C がフォーカス中のエージェントへ渡るため、
+-- F9 で切り替えを選んだエリアの作業が中断される。
+-- cmd = '' は現在のプロセスを終了してシェルに戻る。
 -- 並び順は Windows / Mac で揃える。Claude / Codex のアカウント指定は OS ごとに異なる（統一しない方針）。
 local launcher_apps
 if is_windows then
@@ -225,7 +224,7 @@ end
 -- ===== レイアウト（2026-09-24 更新: WezTerm は Herdr を表示する箱＋作業用タブ） =====
 -- 起動直後は分割せず、唯一のペインで Herdr 本体(TUI)を全画面起動する（1枚目のタブ）。
 -- レイアウトもワークスペース切替も Herdr 自身が持つ（サイドバーの spaces をクリック、または Ctrl+Shift+1〜4）。
--- 自分の作業用アプリは F9 で「新しいタブ」に開く。Herdr のタブには何も送らない。
+-- F9 で選んだアプリは現在選択中のエリアへ送る。
 -- ┌──────────┬──────────────────────────────────────────┐
 -- │ spaces   │  フォーカス中ワークスペースのエージェント群 │
 -- │ デフォルト│  （Herdr が 2x2 等に自動レイアウト）        │
@@ -716,14 +715,17 @@ local brightness_choices = {
 }
 
 -- ランチャー（F9 / Cmd+Shift+9）共通アクション
--- 選んだアプリを新しいタブで起動する。現在ペイン（Herdr）には何も送らない。
--- 旧方式（2026-09-24 まで）: 現在ペインへ Ctrl+C x2 + Enter を送ってからコマンドを入力していた。
+-- 選択中のエリアのプロセスを終了し、同じ場所で選んだアプリを起動する。
 local launcher_action = act.InputSelector {
-  title = '  Launch App (新しいタブ)',
+  title = '  Launch App (選択中のエリア)',
   choices = launcher_choices,
   action = wezterm.action_callback(function(window, pane, id, label)
     if not id then return end
-    window:perform_action(spawn_in_new_tab(launcher_cmds[id]), pane)
+    pane:send_text('\x03\x03\r')
+    local cmd = launcher_cmds[id]
+    if cmd and cmd ~= '' then
+      pane:send_text(cmd .. '\r')
+    end
   end),
 }
 
