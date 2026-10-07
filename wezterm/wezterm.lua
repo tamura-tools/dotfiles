@@ -439,7 +439,7 @@ config.initial_rows = 50
 local wallpaper_file
 local wallpaper_dir
 if is_windows then
-  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/workshop-brutalist-4k.png'
+  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper_win.jpg'
   wallpaper_dir = wezterm.home_dir .. '\\dotfiles\\wezterm\\wallpapers\\'
 else
   -- 既定の壁紙は Windows と同じもの（wallpapers/ 直下の共有ファイルを参照する）。
@@ -482,8 +482,8 @@ if is_windows then
   config.background = {
     {
       source = { File = wallpaper_file },
-      -- 元画像を暗色に調整済みなので、質感が残る程度の明るさにする。
-      hsb = { brightness = 0.45 },
+      -- 従来の壁紙に合わせた起動時の明るさ。
+      hsb = { brightness = 0.1 },
       opacity = 0.9,
       horizontal_align = 'Center',
       vertical_align = 'Middle',
