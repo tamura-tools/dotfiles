@@ -103,8 +103,8 @@ if is_windows then
 else
   launcher_apps = {
     -- 個人=既定の ~/.claude / 会社=~/.claude-work（Windows とは対応が逆。統一しない方針）
-    { id = 'claude',     label = 'Claude Code',       cmd = 'unset CLAUDE_CONFIG_DIR; claude' },
-    { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'CLAUDE_CONFIG_DIR=~/.claude-work claude --model opus' },
+    { id = 'claude',     label = 'Claude Code',       cmd = 'unset NO_COLOR CLAUDE_CONFIG_DIR; FORCE_COLOR=3 COLORTERM=truecolor claude' },
+    { id = 'claude-work', label = 'Claude Code (会社)', cmd = 'unset NO_COLOR; FORCE_COLOR=3 CLAUDE_CONFIG_DIR=~/.claude-work claude --model opus' },
     -- Codex は herdr-bootstrap.sh と同じ codex-account.sh で会社/個人を切り替える。
     -- 会社=~/.codex-work / 個人=既定の ~/.codex（2026-09-24 実機確認）
     { id = 'codex',      label = 'Codex CLI (会社)',   cmd = 'cd ~/claude && ~/dotfiles/wezterm/codex-account.sh work' },
@@ -204,7 +204,7 @@ for _, app in ipairs(launcher_apps) do
   launcher_cmds[app.id] = app.cmd
 end
 
--- 新しいタブでコマンドを起動するアクションを作る（F9 と直接キーの両方から使う）。
+-- 新しいタブでコマンドを起動するアクションを作る（直接キー Ctrl+Shift+G / S から使う。F9 は選択中のエリアで起動）。
 -- Windows: powershell -Command（プロファイルは読む＝従来の対話シェルと同じ環境）。終了でタブも閉じる。
 -- Mac: zsh -lic（ログイン＋対話で ~/.zshrc を読む＝従来の対話シェルと同じ PATH）。終了でタブも閉じる。
 local launcher_cwd = is_windows and 'C:\\claude' or (wezterm.home_dir .. '/claude')
@@ -414,8 +414,8 @@ config.colors = {
   compose_cursor = '#FFB84D',
 }
 config.inactive_pane_hsb = {
-  saturation = 0.70,
-  brightness = 0.58,
+  saturation = is_windows and 0.70 or 1.0,
+  brightness = is_windows and 0.58 or 1.0,
 }
 -- アクティブペインだけに現れるカーソルを、入力位置の発光インジケーターとして使う。
 config.default_cursor_style = 'BlinkingBlock'
@@ -428,7 +428,9 @@ config.automatically_reload_config = true
 -- 現在は Herdr TUI 全体の見た目にも効いている（値の見直しは壁紙の整理時に判断する）。
 -- WezTerm はペイン個別の透過を持たないので、色付きセル背景の不透明度を全体で下げて透かす。
 -- 副作用: 全ペインの選択範囲/シンタックス・差分ハイライト等の色付き背景も薄くなる（既定背景の通常テキストは無変化）。
-config.text_background_opacity = 0.3
+config.text_background_opacity = is_windows and 0.3 or 1.0
+-- Mac は背後のアプリが混ざらないようにする。
+config.window_background_opacity = 1.0
 config.font = wezterm.font('UDEV Gothic NF')
 config.font_size = 12
 config.initial_cols = 200
@@ -442,9 +444,8 @@ if is_windows then
   wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper_win.jpg'
   wallpaper_dir = wezterm.home_dir .. '\\dotfiles\\wezterm\\wallpapers\\'
 else
-  -- 既定の壁紙は Windows と同じもの（wallpapers/ 直下の共有ファイルを参照する）。
-  -- 差し替え候補の一覧（Cmd+Shift+I）は従来どおり wallpapers/mac/ を見る。
-  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/workshop-brutalist-4k.png'
+  -- Mac は従来の青い壁紙を既定にする。
+  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper.jpg'
   wallpaper_dir = wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/mac/'
 end
 
@@ -501,9 +502,9 @@ else
     config.background = {
       {
         source = { File = saved_wp or wallpaper_file },
-        -- 元画像を暗色に調整済みなので、質感が残る程度の明るさにする（Windows と同値）。
-        hsb = { brightness = 0.45 },
-        opacity = 0.9,
+        -- 従来の Mac 壁紙の明るさ。画像レイヤーも不透明にして背後を遮断する。
+        hsb = { brightness = 0.1 },
+        opacity = 1.0,
         horizontal_align = 'Center',
         vertical_align = 'Middle',
         repeat_x = 'NoRepeat',
@@ -516,6 +517,9 @@ end
 -- モデル指定解除
 local env_vars = {
   ANTHROPIC_MODEL = '',
+  COLORTERM = 'truecolor',
+  FORCE_COLOR = '3',
+  NO_COLOR = '',
 }
 if is_windows then
   -- Codex は standalone 実体 (~\.codex\packages\standalone\current\bin) から起動しないと
@@ -757,7 +761,7 @@ config.keys = {
   -- Pane select: 番号オーバーレイでペインへジャンプ (F8)
   -- ※表示される番号は WezTerm 側の分割順（Herdr 内のペインは対象外）。
   { key = 'F8', mods = 'NONE', action = act.PaneSelect { alphabet = '1234567890', mode = 'Activate' } },
-  -- Quick launch: lazygit / Todoist を F9 と同じく新しいタブで起動 (Ctrl+Shift+G / Ctrl+Shift+S)
+  -- Quick launch: lazygit / Todoist を 新しいタブで起動（F9 は選択中のエリアで起動） (Ctrl+Shift+G / Ctrl+Shift+S)
   -- 旧方式（2026-09-24 まで）は現在ペインへ文字列を送っており、Herdr 表示中は
   -- フォーカス中のエージェントへの入力になってしまうため変更した。
   { key = 'g', mods = 'CTRL|SHIFT', action = spawn_in_new_tab(launcher_cmds['lazygit']) },

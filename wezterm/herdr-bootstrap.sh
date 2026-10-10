@@ -30,6 +30,9 @@ for _d in "$HOME/.local/bin" "$HOME/.npm-global/bin" "$HOME/.grok/bin" \
   esac
 done
 export PATH
+# 全CLIをカラー表示で起動する。古いサーバー環境も各起動時に上書きする。
+unset NO_COLOR
+export TERM=xterm-256color COLORTERM=truecolor FORCE_COLOR=3 CLICOLOR=1
 unset _d
 
 if ! command -v herdr >/dev/null 2>&1; then
@@ -69,7 +72,7 @@ legacy_label_for() {
 # ---------- サーバー管理 ----------
 
 test_server() {
-  herdr status server 2>/dev/null | grep -q 'running'
+  herdr status server 2>/dev/null | grep -qE '^status:[[:space:]]+running$'
 }
 
 start_server() {
@@ -219,7 +222,7 @@ start_agent_if_missing() {
     return 0
   fi
   echo "Starting: $display_name"
-  herdr pane run "$pane_id" "$@"
+  herdr pane run "$pane_id" env -u NO_COLOR TERM=xterm-256color COLORTERM=truecolor FORCE_COLOR=3 CLICOLOR=1 "$@"
 }
 
 # ---------- メイン ----------
@@ -268,7 +271,7 @@ CLAUDE_WORK_DIR="$HOME/.claude-work"
 # --- CONTROL / ENTRY ---
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Commander - Claude Work / Opus 5')" \
   'Commander' \
-  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=commander; cd $WORK_ROOT && claude --model opus --name commander"
+  bash -c "unset NO_COLOR; export FORCE_COLOR=3 COLORTERM=truecolor CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=commander; cd $WORK_ROOT && claude --model opus --name commander"
 
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Sol - Codex Personal / GPT-5.6 Sol')" \
   'Sol' \
@@ -276,7 +279,7 @@ start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Sol - Codex Personal /
 
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Utility - Claude Personal')" \
   'Utility' \
-  bash -c "unset CLAUDE_CONFIG_DIR; export AGMSG_AGENT=utility; cd $WORK_ROOT && claude --name utility"
+  bash -c "unset NO_COLOR CLAUDE_CONFIG_DIR; export FORCE_COLOR=3 COLORTERM=truecolor AGMSG_AGENT=utility; cd $WORK_ROOT && claude --name utility"
 
 # 旧 Status 枠（Shellのまま起動しなかった）を Codex 会社にする（2026-09-24）。
 # AGMSG_AGENT は agmsg 登録済みの `codex`（旧 会社Codex）を使う。
