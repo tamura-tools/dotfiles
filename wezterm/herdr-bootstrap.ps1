@@ -301,7 +301,7 @@ Set-PaneLabels $extra @(
 # ラベルは loop-inbox/loop_reset_execution.py の ROLES と一致させること（変更禁止。両 slot 共通）。
 $executionLabels = @(
     'Supervisor - Claude Work / Opus 5',
-    'Reviewer A - Claude Work / Opus 5',
+    'Reviewer A - Codex Work / GPT-6.1 Sol',
     'Worker A - Gemini 3.8 Flash',
     'Worker B - Claude Work / Sonnet 5'
 )
@@ -333,12 +333,17 @@ $antigravity = "Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.ex
 # settings.json / hooks.json で writer_guard.py が全ツールを判定する（明示許可以外 deny、run_command 全面 deny、
 # 書き込みは run の writer-out 内の宣言済み成果物だけ）。HOME を差し替えるため LOOP_INBOX_STATE を明示する（2026-09-24）
 $loopSupervisor = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-supervisor; Set-Location C:\claude; claude --model opus --name loop-supervisor"
-$loopReviewer = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-review-a; Set-Location C:\claude; claude --model opus --name loop-review-a"
+# Reviewer A は会社Codex（~/.codex-work, GPT-6.1 Sol）。Claude の容量を抑えるため 2026-10-15 に Opus から切替。
+# codex-account.ps1 は変数を使わず絶対パスで書く（loop_reset_execution.py が未展開の変数を拒否するため）。
+# run 単位で `--reviewer-model claude-*` を指定したときだけ $loopReviewerClaude（Claude Work）で起動し、--model を差し替える。
+$loopReviewer = "Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-review-a; Set-Location C:\claude; & $userRoot\dotfiles\wezterm\codex-account.ps1 -Account work --model gpt-6.1-sol"
+$loopReviewerClaude = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-review-a; Set-Location C:\claude; claude --model opus --name loop-review-a"
 $loopWorkerGemini = "Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-worker-gemini; Set-Item Env:LOOP_INBOX_STATE $userRoot\.agents\loop-inbox; Set-Item Env:USERPROFILE $userRoot\.agents\loop-writer\slot-1\home; Set-Item Env:HOME $userRoot\.agents\loop-writer\slot-1\home; py -3.13 C:\claude\loop-inbox\loop_writer.py ensure-profile --slot 1 --home $userRoot\.agents\loop-writer\slot-1\home; Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.exe --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
 $loopWorkerSonnet = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 1; Set-Item Env:AGMSG_AGENT loop-worker-sonnet; Set-Location C:\claude; claude --model sonnet --name loop-worker-sonnet"
 # Execution Slot 2（🦍 EXECUTION 2）。slot 1 と同じコマンドで、役割名に -2・LOOP_SLOT 2（変数名は末尾 2）
 $loopSupervisor2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-supervisor-2; Set-Location C:\claude; claude --model opus --name loop-supervisor-2"
-$loopReviewer2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-review-a-2; Set-Location C:\claude; claude --model opus --name loop-review-a-2"
+$loopReviewer2 = "Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-review-a-2; Set-Location C:\claude; & $userRoot\dotfiles\wezterm\codex-account.ps1 -Account work --model gpt-6.1-sol"
+$loopReviewerClaude2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-review-a-2; Set-Location C:\claude; claude --model opus --name loop-review-a-2"
 $loopWorkerGemini2 = "Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-worker-gemini-2; Set-Item Env:LOOP_INBOX_STATE $userRoot\.agents\loop-inbox; Set-Item Env:USERPROFILE $userRoot\.agents\loop-writer\slot-2\home; Set-Item Env:HOME $userRoot\.agents\loop-writer\slot-2\home; py -3.13 C:\claude\loop-inbox\loop_writer.py ensure-profile --slot 2 --home $userRoot\.agents\loop-writer\slot-2\home; Set-Location C:\claude; & $userRoot\AppData\Local\agy\bin\agy.exe --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
 $loopWorkerSonnet2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:LOOP_SLOT 2; Set-Item Env:AGMSG_AGENT loop-worker-sonnet-2; Set-Location C:\claude; claude --model sonnet --name loop-worker-sonnet-2"
 # Codex 会社（~/.codex-work）。自動承認フラグ（--approve-for-me）は付けない（常駐枠のため）。
@@ -389,7 +394,7 @@ if ($statusPane -and (Test-Path $loopIntakeScript)) {
 # --- EXECUTION ---
 Start-AgentIfMissing (Get-PaneByLabel $execution 'Supervisor - Claude Work / Opus 5') $loopSupervisor 'Supervisor' $liveAgentPaneIds
 if (-not $SkipReview) {
-    Start-AgentIfMissing (Get-PaneByLabel $execution 'Reviewer A - Claude Work / Opus 5') $loopReviewer 'Reviewer A' $liveAgentPaneIds
+    Start-AgentIfMissing (Get-PaneByLabel $execution 'Reviewer A - Codex Work / GPT-6.1 Sol') $loopReviewer 'Reviewer A' $liveAgentPaneIds
 }
 Start-AgentIfMissing (Get-PaneByLabel $execution 'Worker A - Gemini 3.8 Flash') $loopWorkerGemini 'Worker A - Gemini 3.8 Flash' $liveAgentPaneIds
 Start-AgentIfMissing (Get-PaneByLabel $execution 'Worker B - Claude Work / Sonnet 5') $loopWorkerSonnet 'Worker B - Sonnet 5' $liveAgentPaneIds
@@ -397,7 +402,7 @@ Start-AgentIfMissing (Get-PaneByLabel $execution 'Worker B - Claude Work / Sonne
 # --- EXECUTION 2（Execution Slot 2）---
 Start-AgentIfMissing (Get-PaneByLabel $execution2 'Supervisor - Claude Work / Opus 5') $loopSupervisor2 'Supervisor (slot 2)' $liveAgentPaneIds
 if (-not $SkipReview) {
-    Start-AgentIfMissing (Get-PaneByLabel $execution2 'Reviewer A - Claude Work / Opus 5') $loopReviewer2 'Reviewer A (slot 2)' $liveAgentPaneIds
+    Start-AgentIfMissing (Get-PaneByLabel $execution2 'Reviewer A - Codex Work / GPT-6.1 Sol') $loopReviewer2 'Reviewer A (slot 2)' $liveAgentPaneIds
 }
 Start-AgentIfMissing (Get-PaneByLabel $execution2 'Worker A - Gemini 3.8 Flash') $loopWorkerGemini2 'Worker A - Gemini 3.8 Flash (slot 2)' $liveAgentPaneIds
 Start-AgentIfMissing (Get-PaneByLabel $execution2 'Worker B - Claude Work / Sonnet 5') $loopWorkerSonnet2 'Worker B - Sonnet 5 (slot 2)' $liveAgentPaneIds

@@ -253,7 +253,7 @@ apply_pane_labels "$EXTRA_WS" \
 for _ws in "$EXECUTION_WS" "$EXECUTION2_WS"; do
   init_pane_grid "$_ws" 4
   apply_pane_labels "$_ws" \
-    'Supervisor - Claude Work / Opus 5' 'Reviewer A - Claude Work / Opus 5' \
+    'Supervisor - Claude Work / Opus 5' 'Reviewer A - Codex Work / GPT-6.1 Sol' \
     'Worker A - Gemini 3.8 Flash' 'Worker B - Claude Work / Sonnet 5'
 done
 unset _ws
@@ -295,9 +295,10 @@ start_execution_slot() {
     bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-supervisor$sfx; cd $WORK_ROOT && claude --model opus --name loop-supervisor$sfx"
 
   if [ "$SKIP_REVIEW" = false ]; then
-    start_agent_if_missing "$(pane_id_by_label "$ws" 'Reviewer A - Claude Work / Opus 5')" \
+    # Reviewer A は会社Codex（GPT-6.1 Sol）。Windows と同じ契約（2026-10-15 Opus から切替）
+    start_agent_if_missing "$(pane_id_by_label "$ws" 'Reviewer A - Codex Work / GPT-6.1 Sol')" \
       "Reviewer A$tag" \
-      bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-review-a$sfx; cd $WORK_ROOT && claude --model opus --name loop-review-a$sfx"
+      bash -c "export LOOP_SLOT=$slot AGMSG_AGENT=loop-review-a$sfx; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work -- --model gpt-6.1-sol"
   fi
 
   # Macでも既存のagyを使う。自動承認はONだが、既存の物理deny / guardrailは変更しない。
