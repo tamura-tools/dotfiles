@@ -229,18 +229,20 @@ end
 -- │ spaces   │  フォーカス中ワークスペースのエージェント群 │
 -- │ デフォルト│  （Herdr が 2x2 等に自動レイアウト）        │
 -- │ Extra    │                                          │
--- │ 🦍 EXEC  │  切り替えはサイドバーの spaces をクリック    │
--- │ 🦍 受付  │                                          │
+-- │ 📮 受付  │  切り替えはサイドバーの spaces をクリック    │
+-- │ 🦍 EXEC  │  （Ctrl+Shift+1〜5 でも切替）                │
+-- │ 🐦 EXEC  │                                          │
 -- └──────────┴──────────────────────────────────────────┘
 --   起動時に herdr-bootstrap（-ConfigureOnly / --configure-only）をバックグラウンドで走らせ、
 --   サーバー起動→ワークスペース/ペイン構成→エージェント起動まで行う。
 --   その完了をペイン側で待ってから herdr TUI クライアントを起動する。
 --   Herdrのワークスペース（herdr-bootstrap が構築。Windows / Mac 共通の並び）:
---     w1 デフォルト    : Commander / Sol / Utility / Codex Work - Main（2x2）
+--     w1 デフォルト    : Commander / Codex Work - Main / Utility / Sol（2x2）
 --     w2 Extra         : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra（2x2）
---     w3 🦍 EXECUTION  : Supervisor / Reviewer A / Worker A / Worker B（2x2）
---     w4 🦍 受付       : Loop Inbox Receiver（Windows）/ 空き枠（Mac。受付の仕組みは Portable Gorilla 側で検討）
---   ※ w3 のラベル「🦍 EXECUTION」と4役の同居は変更しないこと。
+--     w3 📮 受付       : Loop Inbox Receiver / 🦍 Loop Commander / 🐦 Loop Commander / Loop Utility（2x2。Mac は枠だけ）
+--     w4 🦍 EXECUTION  : Execution Slot 1。Supervisor / Reviewer A / Worker A / Worker B（2x2）
+--     w5 🐦 EXECUTION  : Execution Slot 2。w4 と同じ4役。Pigeon の run はここだけ（2026-10-20）
+--   ※ ラベル「🦍 EXECUTION」「🐦 EXECUTION」と4役の同居は変更しないこと。
 --      loop-inbox/loop_reset_execution.py がこのラベル1つで4役をまとめて探している（2026-09-24 調査）。
 --      制御と実行の分離、Worker 追加（w5 以降に置く想定）は🦍ループ本体の別課題。
 --   ※ Codex 会社の2枠は「- Main」「- Extra」と先頭が一致しない名前にする
@@ -911,7 +913,7 @@ config.keys = {
       end),
     },
   },
-  -- Herdr workspace switch: Ctrl+Shift+1/2/3/4 で デフォルト / Extra / 🦍 EXECUTION / 🦍 受付 を切替（Win/Mac 共通）
+  -- Herdr workspace switch: Ctrl+Shift+1〜5 で デフォルト / Extra / 📮 受付 / 🦍 EXECUTION / 🐦 EXECUTION を切替（Win/Mac 共通）
   -- 番号は herdr の作成順（bootstrap の WORKSPACE_PLAN / $workspacePlan の並び）に対応する。
   -- ※ bootstrap の並び替えと herdr server の作り直しが済むまでは、旧構成の順番で動く。
   -- ※ WezTerm 標準の「Ctrl+Shift+数字でタブ切替」を上書きしている。タブ移動は Ctrl+Tab / Ctrl+Shift+Tab を使う。
@@ -926,6 +928,9 @@ config.keys = {
   end) },
   { key = '4', mods = 'CTRL|SHIFT', action = wezterm.action_callback(function()
     wezterm.background_child_process { herdr_exe, 'workspace', 'focus', 'w4' }
+  end) },
+  { key = '5', mods = 'CTRL|SHIFT', action = wezterm.action_callback(function()
+    wezterm.background_child_process { herdr_exe, 'workspace', 'focus', 'w5' }
   end) },
   -- Launcher menu: アプリ切り替え
   -- Win/Mac とも F9。Mac では Mission Control 等に F9 を奪われやすいので

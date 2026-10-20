@@ -4,11 +4,12 @@
 # WezTerm gui-startup からバックグラウンド実行される。
 # 用法: herdr-bootstrap.sh [--configure-only] [--skip-extra] [--skip-review]
 #
-#   w1 デフォルト   : Commander / Sol / Utility / Codex Work - Main（旧 Status 枠）
+#   w1 デフォルト   : Commander / Codex Work - Main / Utility / Sol（2026-10-19 Sol と入替）
 #   w2 Extra        : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra
-#   w3 🦍 EXECUTION : Supervisor / Reviewer A / Worker A / Worker B（中身は変更なし）
-#   w4 🦍 受付      : Loop Inbox Receiver 枠。Mac には loop_intake.py が無いため何も起動しない
-#   w5 🦍 EXECUTION 2 : Execution Slot 2。4役・ペイン名は w3 と同じ（2026-09-24 Execution Slots。Windows と同じ契約）
+#   w3 📮 受付      : Loop Inbox Receiver / 🦍 Loop Commander / 🐦 Loop Commander / Loop Utility の4枠（2026-10-20）。
+#                     Mac では Loop 制御をしないため、ペインを作るだけで何も起動しない
+#   w4 🦍 EXECUTION : Execution Slot 1。Supervisor / Reviewer A / Worker A / Worker B
+#   w5 🐦 EXECUTION : Execution Slot 2。4役・ペイン名は w4 と同じ（Windows と同じ契約）
 #   ※ Mac は構成の生成まで。Loop 制御（submit / reset / wake / drain）は Windows のみ（2026-09-24 洸さん判断）
 #   （2026-09-24 再編。Windows と同じ作成順）
 #
@@ -57,15 +58,17 @@ CODEX_ACCOUNT_SCRIPT="$HOME/dotfiles/wezterm/codex-account.sh"
 # ワークスペースは「番号順 = この並び順」で扱う。herdr には並べ替えコマンドが無く、
 # 番号は作成順で決まる。新規セッションではこの順に作られ、既存セッションでは
 # 不足分が末尾に追加される（順番を正すには herdr server の作り直しが要る）。
-# ※「🦍 EXECUTION」「🦍 EXECUTION 2」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
+# ※「🦍 EXECUTION」「🐦 EXECUTION」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
 #   契約の正本は loop-inbox/_common.py の SLOTS。slot 2 の役割名は slot 1 の名前に `-2`、LOOP_SLOT は 1 / 2。
-WORKSPACE_PLAN=('デフォルト' 'Extra' '🦍 EXECUTION' '🦍 受付' '🦍 EXECUTION 2')
+WORKSPACE_PLAN=('デフォルト' 'Extra' '📮 受付' '🦍 EXECUTION' '🐦 EXECUTION')
 
 legacy_label_for() {
   case "$1" in
     'デフォルト')    echo 'CONTROL / ENTRY' ;;
     'Extra')         echo 'Extra Agents' ;;
     '🦍 EXECUTION')  echo 'Review Agents' ;;
+    '📮 受付')       echo '🦍 受付' ;;          # 2026-10-20 受付を4分割
+    '🐦 EXECUTION')  echo '🐦 EXECUTION 2' ;;   # 2026-10-20 slot 2 改名（旧 🦍 EXECUTION 2 は位置で採用）
   esac
 }
 
@@ -231,24 +234,25 @@ start_server
 
 CONTROL_WS=$(resolve_workspace 0 'デフォルト')
 EXTRA_WS=$(resolve_workspace 1 'Extra')
-EXECUTION_WS=$(resolve_workspace 2 '🦍 EXECUTION')
-RECEPTION_WS=$(resolve_workspace 3 '🦍 受付')
-EXECUTION2_WS=$(resolve_workspace 4 '🦍 EXECUTION 2')
+RECEPTION_WS=$(resolve_workspace 2 '📮 受付')
+EXECUTION_WS=$(resolve_workspace 3 '🦍 EXECUTION')
+EXECUTION2_WS=$(resolve_workspace 4 '🐦 EXECUTION')
 
 # デフォルト: 相談窓口とTask Packet作成。CommanderはSupervisorではない。
 # 4枚目は旧 Status 枠を Codex 会社にする（2026-09-24）。Codex 会社の2枠は
 # 「Codex Work - Main」「Codex Work - Extra」とし、一方が他方の前方一致にならない名前にする。
+# 2026-10-19: 2枚目と4枚目を入れ替え（Codex Work - Main を右上、Sol を右下）。Sol のモデル表記は削除。
 init_pane_grid "$CONTROL_WS" 4
 apply_pane_labels "$CONTROL_WS" \
-  'Commander - Claude Work / Opus 5' 'Sol - Codex Personal / GPT-5.6 Sol' \
-  'Utility - Claude Personal' 'Codex Work - Main'
+  'Commander - Claude Work / Opus 5' 'Codex Work - Main' \
+  'Utility - Claude Personal' 'Sol - Codex Personal'
 
 # EXTRA: 4枚目は旧「Codex - Extra」を Windows と同じ「Codex Work - Extra」に改名（中身は同じ Codex 会社）。
 init_pane_grid "$EXTRA_WS" 4
 apply_pane_labels "$EXTRA_WS" \
   'Grok' 'Antigravity CLI' 'Claude Work - Extra' 'Codex Work - Extra'
 
-# EXECUTION: 入力はTask Packetのみ。独立 run を最大2本（slot 1 = 🦍 EXECUTION / slot 2 = 🦍 EXECUTION 2）。
+# EXECUTION: 入力はTask Packetのみ。独立 run を最大2本（slot 1 = 🦍 EXECUTION / slot 2 = 🐦 EXECUTION）。
 # 1 slot = 1 run。ReviewerはAのみ。ペイン名は両 slot 共通。
 for _ws in "$EXECUTION_WS" "$EXECUTION2_WS"; do
   init_pane_grid "$_ws" 4
@@ -258,9 +262,9 @@ for _ws in "$EXECUTION_WS" "$EXECUTION2_WS"; do
 done
 unset _ws
 
-# 🦍 受付: Windows と同じ名前の1枠だけ作る。Mac には loop_intake.py が無いため何も起動しない。
-init_pane_grid "$RECEPTION_WS" 1
-apply_pane_labels "$RECEPTION_WS" 'Loop Inbox Receiver'
+# 📮 受付: Windows と同じ名前の4枠を作る。Mac では Loop 制御をしないため何も起動しない。
+init_pane_grid "$RECEPTION_WS" 4
+apply_pane_labels "$RECEPTION_WS"   'Loop Inbox Receiver' '🦍 Loop Commander - Claude Work / Opus 5'   '🐦 Loop Commander - Claude Work / Sonnet 5' 'Loop Utility - Claude Work / Sonnet 5'
 
 LIVE_PANE_IDS=$(live_agent_pane_ids)
 
@@ -273,7 +277,7 @@ start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Commander - Claude Wor
   'Commander' \
   bash -c "unset NO_COLOR; export FORCE_COLOR=3 COLORTERM=truecolor CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=commander; cd $WORK_ROOT && claude --model opus --name commander"
 
-start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Sol - Codex Personal / GPT-5.6 Sol')" \
+start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Sol - Codex Personal')" \
   'Sol' \
   bash -c "export AGMSG_AGENT=codex-sol; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT personal"
 
