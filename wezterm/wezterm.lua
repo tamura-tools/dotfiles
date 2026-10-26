@@ -289,6 +289,32 @@ end)
 
 -- カスタムカラースキーム
 config.color_schemes = {
+  ['Claude Coast'] = {
+    -- Claude風の紙色とチャコール。ANSI色も明るい背景で読める濃さにする。
+    foreground = '#3D3D3A',
+    background = '#FAF9F5',
+    cursor_bg = '#B65E43',
+    cursor_fg = '#FAF9F5',
+    cursor_border = '#B65E43',
+    selection_bg = '#D8D6C9',
+    selection_fg = '#262824',
+    ansi = {
+      '#292B27', '#A13D36', '#44613D', '#805C20',
+      '#365F80', '#784D76', '#306762', '#53564E',
+    },
+    brights = {
+      '#62665C', '#A64736', '#4B673E', '#866021',
+      '#3D6586', '#80557E', '#356E68', '#30332E',
+    },
+    tab_bar = {
+      background = '#EAE7DD',
+      active_tab = { bg_color = '#FAF9F5', fg_color = '#3D3D3A', intensity = 'Bold' },
+      inactive_tab = { bg_color = '#EAE7DD', fg_color = '#5C5A52' },
+      inactive_tab_hover = { bg_color = '#E1DDD2', fg_color = '#3D3D3A' },
+      new_tab = { bg_color = '#EAE7DD', fg_color = '#5C5A52' },
+      new_tab_hover = { bg_color = '#E1DDD2', fg_color = '#3D3D3A' },
+    },
+  },
   ['Golden Hour'] = {
     -- 砂色の海と雲に合わせた暖色の文字。ANSI色は暗い写真の上で区別する。
     foreground = '#F2E8D5',
@@ -422,20 +448,21 @@ config.color_schemes = {
   },
 }
 
-config.color_scheme = is_windows and 'Golden Hour' or 'Tokyo Night'
+config.color_scheme = is_windows and 'Claude Coast' or 'Tokyo Night'
 -- ===== 作業場ダーク =====
 -- WezTerm はペイン境界の太さを変更できないため、高コントラストの境界色と
 -- 非アクティブペインの減光を組み合わせて、仕切りを太く見せる。
 config.colors = {
-  split = is_windows and '#B6BC9D' or '#7AA2F7',
-  cursor_bg = is_windows and '#E8CA8E' or '#00F5FF',
-  cursor_fg = is_windows and '#222520' or '#07111A',
-  cursor_border = is_windows and '#F5DEAD' or '#B8FBFF',
-  compose_cursor = is_windows and '#E99B8B' or '#FFB84D',
+  split = is_windows and '#A09C8D' or '#7AA2F7',
+  -- Windowsのカーソル色は選択中のスキームに従う（暗色プロファイルでも読める）。
+  cursor_bg = not is_windows and '#00F5FF' or nil,
+  cursor_fg = not is_windows and '#07111A' or nil,
+  cursor_border = not is_windows and '#B8FBFF' or nil,
+  compose_cursor = is_windows and '#B65E43' or '#FFB84D',
 }
 config.inactive_pane_hsb = {
-  saturation = is_windows and 0.85 or 1.0,
-  brightness = is_windows and 0.85 or 1.0,
+  saturation = 1.0,
+  brightness = 1.0,
 }
 -- アクティブペインだけに現れるカーソルを、入力位置の発光インジケーターとして使う。
 config.default_cursor_style = 'BlinkingBlock'
@@ -496,22 +523,29 @@ local function write_wallpaper_state(path)
   f:close()
 end
 
+-- 写真の上に紙色を重ね、暗い部分でもチャコール文字が読める背景にする。
+-- デスクトップ透過は使わず、既定とプロファイルで同じレイヤーを共有する。
+local function coast_background(path)
+  return {
+    {
+      source = { File = path },
+      hsb = { brightness = 1.0, saturation = 0.75 },
+      opacity = 1.0,
+      horizontal_align = 'Center', vertical_align = 'Middle',
+      repeat_x = 'NoRepeat', repeat_y = 'NoRepeat',
+    },
+    {
+      source = { Color = '#FAF9F5' },
+      width = '100%', height = '100%', opacity = 0.86,
+    },
+  }
+end
+
 -- OS別設定
 if is_windows then
   config.default_prog = { 'powershell.exe' }
   config.default_cwd = 'C:/claude'
-  config.background = {
-    {
-      source = { File = wallpaper_file },
-      -- 明るい原画を抑え、アイボリー文字とANSI色の可読性を確保する。
-      hsb = { brightness = 0.22 },
-      opacity = 1.0,
-      horizontal_align = 'Center',
-      vertical_align = 'Middle',
-      repeat_x = 'NoRepeat',
-      repeat_y = 'NoRepeat',
-    },
-  }
+  config.background = coast_background(wallpaper_file)
 else
   config.default_cwd = wezterm.home_dir .. '/claude'
   -- 状態ファイルから前回の壁紙を復元（無ければ wallpaper_file がデフォルト）
@@ -558,6 +592,14 @@ config.set_environment_variables = env_vars
 -- テーマ + 壁紙 + 明るさをセットで切り替え
 -- 用途: 個人/会社アカウントの視覚的な区別
 local profiles = {
+  {
+    id = 'claude-coast',
+    label = '⛵ Claude Coast — アイボリー + 夕凪の海',
+    color_scheme = 'Claude Coast',
+    wallpaper = 'carlos-torres-zxeYXNAj5KM-unsplash.jpg',
+    paper_overlay = true,
+    window_background_opacity = 1.0,
+  },
   {
     id = 'golden-hour',
     label = '⛵ Golden Hour — 夕凪の海 + アイボリー',
@@ -656,7 +698,9 @@ local function apply_profile(win, profile)
   o.color_scheme = profile.color_scheme
 
   local wp = resolve_wallpaper(profile)
-  if wp then
+  if wp and profile.paper_overlay then
+    o.background = coast_background(wp)
+  elseif wp then
     o.background = { {
       source = { File = wp },
       hsb = { brightness = profile.brightness or 0.1 },
@@ -680,6 +724,7 @@ end
 -- opacity: テーマ背景の不透明度 (高い=テーマ色優先、壁紙はうっすら)
 local light_default = { brightness = 2.0, opacity = 0.92 }
 local light_themes = {
+  ['Claude Coast']             = { paper_overlay = true },
   ['Claude Light']             = light_default,
   ['Tokyo Night Day']         = light_default,
   ['Catppuccin Latte']        = light_default,
@@ -715,6 +760,7 @@ local color_schemes = {
   'Neuromancer',
   'Holo HUD',
   -- Light
+  'Claude Coast',
   'Claude Light',
   'Tokyo Night Day',
   'Catppuccin Latte',
@@ -816,11 +862,20 @@ config.keys = {
             if o.background and o.background[1] and o.background[1].source then
               f = o.background[1].source.File or f
             end
-            o.background = { { source = { File = f }, hsb = { brightness = lt.brightness }, opacity = 0.9, horizontal_align = 'Center', vertical_align = 'Middle', repeat_x = 'NoRepeat', repeat_y = 'NoRepeat' } }
-            o.window_background_opacity = lt.opacity
+            if lt.paper_overlay then
+              o.background = coast_background(f)
+              o.window_background_opacity = 1.0
+            else
+              o.background = { { source = { File = f }, hsb = { brightness = lt.brightness }, opacity = 0.9, horizontal_align = 'Center', vertical_align = 'Middle', repeat_x = 'NoRepeat', repeat_y = 'NoRepeat' } }
+              o.window_background_opacity = lt.opacity
+            end
           else
-            -- ダークテーマ: デフォルトに戻す
-            o.background = nil
+            -- Windowsの既定は紙色なので、暗色テーマには暗い写真を明示する。
+            o.background = is_windows and { {
+              source = { File = wallpaper_file }, hsb = { brightness = 0.1 },
+              opacity = 1.0, horizontal_align = 'Center', vertical_align = 'Middle',
+              repeat_x = 'NoRepeat', repeat_y = 'NoRepeat',
+            } } or nil
             o.window_background_opacity = nil
           end
         end
