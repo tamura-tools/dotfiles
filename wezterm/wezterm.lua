@@ -536,7 +536,7 @@ local function coast_background(path)
     },
     {
       source = { Color = '#FAF9F5' },
-      width = '100%', height = '100%', opacity = 0.86,
+      width = '100%', height = '100%', opacity = 0.70,
     },
   }
 end
