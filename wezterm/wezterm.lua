@@ -289,6 +289,24 @@ end)
 
 -- カスタムカラースキーム
 config.color_schemes = {
+  ['Golden Hour'] = {
+    -- 砂色の海と雲に合わせた暖色の文字。ANSI色は暗い写真の上で区別する。
+    foreground = '#F2E8D5',
+    background = '#222520',
+    cursor_bg = '#E8CA8E',
+    cursor_fg = '#222520',
+    cursor_border = '#E8CA8E',
+    selection_bg = '#56645A',
+    selection_fg = '#FFF4DE',
+    ansi = {
+      '#343B35', '#E99B8B', '#B9CF9B', '#E8CA8E',
+      '#A7C9D8', '#CBB5D5', '#9DCFC4', '#E3D8C4',
+    },
+    brights = {
+      '#ADB1A2', '#F6B3A4', '#D1E3B7', '#F5DEAD',
+      '#C1DEEB', '#E0CBE8', '#BCE7DC', '#FFF4DE',
+    },
+  },
   ['SF Terminal'] = {
     foreground = '#B0E0E6',       -- 淡いシアン（メインテキスト）
     background = '#0A0A12',       -- ほぼ黒（透過で見えなくなる）
@@ -404,20 +422,20 @@ config.color_schemes = {
   },
 }
 
-config.color_scheme = 'Tokyo Night'
+config.color_scheme = is_windows and 'Golden Hour' or 'Tokyo Night'
 -- ===== 作業場ダーク =====
 -- WezTerm はペイン境界の太さを変更できないため、高コントラストの境界色と
 -- 非アクティブペインの減光を組み合わせて、仕切りを太く見せる。
 config.colors = {
-  split = '#7AA2F7',
-  cursor_bg = '#00F5FF',
-  cursor_fg = '#07111A',
-  cursor_border = '#B8FBFF',
-  compose_cursor = '#FFB84D',
+  split = is_windows and '#B6BC9D' or '#7AA2F7',
+  cursor_bg = is_windows and '#E8CA8E' or '#00F5FF',
+  cursor_fg = is_windows and '#222520' or '#07111A',
+  cursor_border = is_windows and '#F5DEAD' or '#B8FBFF',
+  compose_cursor = is_windows and '#E99B8B' or '#FFB84D',
 }
 config.inactive_pane_hsb = {
-  saturation = is_windows and 0.70 or 1.0,
-  brightness = is_windows and 0.58 or 1.0,
+  saturation = is_windows and 0.85 or 1.0,
+  brightness = is_windows and 0.85 or 1.0,
 }
 -- アクティブペインだけに現れるカーソルを、入力位置の発光インジケーターとして使う。
 config.default_cursor_style = 'BlinkingBlock'
@@ -430,7 +448,7 @@ config.automatically_reload_config = true
 -- 現在は Herdr TUI 全体の見た目にも効いている（値の見直しは壁紙の整理時に判断する）。
 -- WezTerm はペイン個別の透過を持たないので、色付きセル背景の不透明度を全体で下げて透かす。
 -- 副作用: 全ペインの選択範囲/シンタックス・差分ハイライト等の色付き背景も薄くなる（既定背景の通常テキストは無変化）。
-config.text_background_opacity = is_windows and 0.3 or 1.0
+config.text_background_opacity = is_windows and 0.85 or 1.0
 -- Mac は背後のアプリが混ざらないようにする。
 config.window_background_opacity = 1.0
 config.font = wezterm.font('UDEV Gothic NF')
@@ -443,7 +461,7 @@ config.initial_rows = 50
 local wallpaper_file
 local wallpaper_dir
 if is_windows then
-  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpaper_win.jpg'
+  wallpaper_file = wezterm.home_dir .. '/dotfiles/wezterm/wallpapers/carlos-torres-zxeYXNAj5KM-unsplash.jpg'
   wallpaper_dir = wezterm.home_dir .. '\\dotfiles\\wezterm\\wallpapers\\'
 else
   -- Mac は従来の青い壁紙を既定にする。
@@ -485,9 +503,9 @@ if is_windows then
   config.background = {
     {
       source = { File = wallpaper_file },
-      -- 従来の壁紙に合わせた起動時の明るさ。
-      hsb = { brightness = 0.1 },
-      opacity = 0.9,
+      -- 明るい原画を抑え、アイボリー文字とANSI色の可読性を確保する。
+      hsb = { brightness = 0.22 },
+      opacity = 1.0,
       horizontal_align = 'Center',
       vertical_align = 'Middle',
       repeat_x = 'NoRepeat',
@@ -540,6 +558,14 @@ config.set_environment_variables = env_vars
 -- テーマ + 壁紙 + 明るさをセットで切り替え
 -- 用途: 個人/会社アカウントの視覚的な区別
 local profiles = {
+  {
+    id = 'golden-hour',
+    label = '⛵ Golden Hour — 夕凪の海 + アイボリー',
+    color_scheme = 'Golden Hour',
+    wallpaper = 'carlos-torres-zxeYXNAj5KM-unsplash.jpg',
+    brightness = 0.22,
+    window_background_opacity = 1.0,
+  },
   {
     id = 'workshop',
     label = '🧱 作業場 — Tokyo Night + Brutalist 4K',
@@ -669,6 +695,7 @@ local light_themes = {
 
 local color_schemes = {
   -- Dark
+  'Golden Hour',
   'Tokyo Night',
   'Tokyo Night Storm',
   'Catppuccin Mocha',
