@@ -457,21 +457,21 @@ config.color_schemes = {
   },
 }
 
-config.color_scheme = is_windows and 'Claude Coast' or 'Tokyo Night'
+config.color_scheme = is_windows and 'Golden Hour' or 'Tokyo Night'
 -- ===== 作業場ダーク =====
 -- WezTerm はペイン境界の太さを変更できないため、高コントラストの境界色と
 -- 非アクティブペインの減光を組み合わせて、仕切りを太く見せる。
 config.colors = {
-  split = is_windows and '#A09C8D' or '#7AA2F7',
+  split = is_windows and '#B6BC9D' or '#7AA2F7',
   -- Windowsのカーソル色は選択中のスキームに従う（暗色プロファイルでも読める）。
   cursor_bg = not is_windows and '#00F5FF' or nil,
   cursor_fg = not is_windows and '#07111A' or nil,
   cursor_border = not is_windows and '#B8FBFF' or nil,
-  compose_cursor = is_windows and '#B65E43' or '#FFB84D',
+  compose_cursor = is_windows and '#E8CA8E' or '#FFB84D',
 }
 config.inactive_pane_hsb = {
-  saturation = 1.0,
-  brightness = 1.0,
+  saturation = is_windows and 0.85 or 1.0,
+  brightness = is_windows and 0.85 or 1.0,
 }
 -- アクティブペインだけに現れるカーソルを、入力位置の発光インジケーターとして使う。
 config.default_cursor_style = 'BlinkingBlock'
@@ -554,7 +554,12 @@ end
 if is_windows then
   config.default_prog = { 'powershell.exe' }
   config.default_cwd = 'C:/claude'
-  config.background = coast_background(wallpaper_file)
+  config.background = { {
+    source = { File = wallpaper_file },
+    hsb = { brightness = 0.22 }, opacity = 1.0,
+    horizontal_align = 'Center', vertical_align = 'Middle',
+    repeat_x = 'NoRepeat', repeat_y = 'NoRepeat',
+  } }
 else
   config.default_cwd = wezterm.home_dir .. '/claude'
   -- 状態ファイルから前回の壁紙を復元（無ければ wallpaper_file がデフォルト）
@@ -1078,5 +1083,21 @@ if is_windows then
     end
   end)
 end
+
+-- 明るい配色の試用中に残ったウィンドウ単位の上書きを、一度だけ解除する。
+-- 以後の手動プロファイル選択は維持し、稼働中のAIプロセスには触れない。
+wezterm.on('window-config-reloaded', function(window)
+  if not is_windows then return end
+  local key = 'golden_hour_default_20261026_' .. tostring(window:window_id())
+  if wezterm.GLOBAL[key] then return end
+  wezterm.GLOBAL[key] = true
+  local o = window:get_config_overrides() or {}
+  if o.color_scheme == 'Claude Coast' then
+    o.color_scheme = nil
+    o.background = nil
+    o.window_background_opacity = nil
+    window:set_config_overrides(o)
+  end
+end)
 
 return config

@@ -201,9 +201,7 @@ try {
     }
 
     Write-AccountHeader -Color $(if ($Account -eq 'work') { 'Cyan' } else { 'Green' })
-    # ステータス行のテーマ固有RGB色は明るい壁紙で薄くなるため、本文色に合わせる。
-    # 引数で明示指定した場合は呼び出し元の設定を優先する。
-    & codex -c $credentialOverride -c 'tui.status_line_use_colors=false' @CodexArgs
+    & codex -c $credentialOverride @CodexArgs
 }
 finally {
     foreach ($name in $nestedCodexEnvNames) {
