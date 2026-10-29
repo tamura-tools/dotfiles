@@ -24,6 +24,7 @@ $workRoot = 'C:\claude'
 #   w4 🦍 EXECUTION : Execution Slot 1。Supervisor / Reviewer A / Worker A / Worker B
 #   w5 🐦 EXECUTION : Execution Slot 2。4役・ペイン名は w4 と同じ。Pigeon（pigeon-loop）の run はここだけに入る
 #   （2026-10-20 並び替え: 受付を EXECUTION の前へ。slot 2 は 🦍 EXECUTION 2 → 🐦 EXECUTION）
+#   w6 🛠 Work      : 手動作業用。Claude Work - Desk 1 / Codex Work - Desk 1 / Claude Work - Desk 2 / Codex Work - Desk 2（2026-10-29 追加）
 # ※「🦍 EXECUTION」「🐦 EXECUTION」のラベルと4役のペイン名は変更しないこと。
 #   loop-inbox/_common.py の SLOTS（slot 1 / slot 2 の契約）と一致させる。Mac 版 herdr-bootstrap.sh も同じ契約。
 #   slot 2 の役割名は slot 1 の名前に `-2` を付ける（AGMSG_AGENT / claude --name）。LOOP_SLOT は 1 / 2。
@@ -34,7 +35,8 @@ $workspacePlan = @(
     'Extra',
     '📮 受付',
     '🦍 EXECUTION',
-    '🐦 EXECUTION'
+    '🐦 EXECUTION',
+    '🛠 Work'
     # 2026-09-24 退避：ローカルLLM再構築待ち
     # 'Local LLM'
 )
@@ -299,6 +301,7 @@ $extra     = $workspaces['Extra']
 $execution = $workspaces['🦍 EXECUTION']
 $reception = $workspaces['📮 受付']
 $execution2 = $workspaces['🐦 EXECUTION']
+$desk      = $workspaces['🛠 Work']
 # 2026-09-24 退避：ローカルLLM再構築待ち
 # $local  = $workspaces['Local LLM']
 
@@ -322,6 +325,16 @@ Set-PaneLabels $extra @(
     'Antigravity CLI',
     'Claude Work - Extra',
     'Codex Work - Extra'
+)
+
+# 🛠 Work: 手動作業用の会社Claude / 会社Codex 各2枠（2026-10-29）。
+# ラベルは「Desk 1」「Desk 2」とし、既存の「- Extra」「- Main」と前方一致で衝突させない（_common.py の宛先解決対策）。
+Initialize-PaneGrid $desk 4
+Set-PaneLabels $desk @(
+    'Claude Work - Desk 1',
+    'Codex Work - Desk 1',
+    'Claude Work - Desk 2',
+    'Codex Work - Desk 2'
 )
 
 # EXECUTION: 入力はTask Packetのみ。Supervisorは実装・文章生成をせずWorkerへ委譲する。
@@ -390,6 +403,11 @@ $loopUtility = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:A
 # Mac 版と同じ名前だが agmsg 未登録のため、このペインで agmsg を使うとエラーになる（2026-09-24 時点）。
 $codexWorkMain = "Set-Item Env:AGMSG_AGENT codex; Set-Location C:\claude; & $codexAccountScript -Account work"
 $codexWorkExtra = "Set-Item Env:AGMSG_AGENT codex-extra; Set-Location C:\claude; & $codexAccountScript -Account work"
+# 🛠 Work。AGMSG_AGENT は agmsg 未登録（codex-extra と同じ扱い。agmsg を使う場合は登録が必要）
+$claudeWorkDesk1 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:AGMSG_AGENT claude-desk-1; Set-Location C:\claude; claude --name claude-desk-1"
+$claudeWorkDesk2 = "Set-Item Env:CLAUDE_CONFIG_DIR $userRoot\.claude; Set-Item Env:AGMSG_AGENT claude-desk-2; Set-Location C:\claude; claude --name claude-desk-2"
+$codexWorkDesk1 = "Set-Item Env:AGMSG_AGENT codex-desk-1; Set-Location C:\claude; & $codexAccountScript -Account work"
+$codexWorkDesk2 = "Set-Item Env:AGMSG_AGENT codex-desk-2; Set-Location C:\claude; & $codexAccountScript -Account work"
 # 2026-09-24 退避：ローカルLLM再構築待ち
 # $localLlm = 'lms server start; lms unload --all; lms load lfm2.5-2.6b --context-length 32768 --yes; Set-Location C:\claude; opencode --model lmstudio/lfm2.5-2.6b'
 # $localLlmExtra = 'Set-Location C:\claude; opencode --model lmstudio/lfm2.5-2.6b'
@@ -461,6 +479,12 @@ if (-not $SkipExtra) {
     Start-AgentIfMissing (Get-PaneByLabel $extra 'Claude Work - Extra') $claudeWorkExtra 'Claude Work - Extra' $liveAgentPaneIds -Interactive
     Start-AgentIfMissing (Get-PaneByLabel $extra 'Codex Work - Extra') $codexWorkExtra 'Codex Work - Extra' $liveAgentPaneIds -Interactive
 }
+
+# --- 🛠 Work ---
+Start-AgentIfMissing (Get-PaneByLabel $desk 'Claude Work - Desk 1') $claudeWorkDesk1 'Claude Work - Desk 1' $liveAgentPaneIds -Interactive
+Start-AgentIfMissing (Get-PaneByLabel $desk 'Codex Work - Desk 1') $codexWorkDesk1 'Codex Work - Desk 1' $liveAgentPaneIds -Interactive
+Start-AgentIfMissing (Get-PaneByLabel $desk 'Claude Work - Desk 2') $claudeWorkDesk2 'Claude Work - Desk 2' $liveAgentPaneIds -Interactive
+Start-AgentIfMissing (Get-PaneByLabel $desk 'Codex Work - Desk 2') $codexWorkDesk2 'Codex Work - Desk 2' $liveAgentPaneIds -Interactive
 
 # 2026-09-24 退避：ローカルLLM再構築待ち
 # if (-not $SkipLocal) {
