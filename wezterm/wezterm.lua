@@ -94,6 +94,9 @@ if is_windows then
     --   Codex のような個人/会社の同時併用はできないため、エントリは会社用の1本だけにする。
     { id = 'antigravity', label = 'Antigravity CLI (会社 / Auto)', cmd = '$env:PATH = "$env:LOCALAPPDATA\\agy\\bin;$env:PATH"; cd C:\\claude; agy --mode accept-edits --dangerously-skip-permissions' },
     { id = 'grok',       label = 'Grok Build',         cmd = 'cd C:\\claude; grok' },
+    -- OpenRouter（会社キー）。キーは Doppler openrouter/prd から注入し、opencode の auth.json には保存しない。
+    -- モデルは起動後に /models で選ぶ（無料枠の DeepSeek / Kimi 等）。2026-10-29 追加・Windows のみ
+    { id = 'opencode-openrouter', label = 'OpenCode (OpenRouter)', cmd = 'cd C:\\claude; doppler run -p openrouter -c prd -- opencode' },
     { id = 'lazygit',    label = 'lazygit',           cmd = 'cd $HOME\\dotfiles; lazygit' },
     { id = 'yazi',       label = 'yazi',              cmd = 'yazi' },
     { id = 'dashboard',  label = 'Todoist',            cmd = '& $HOME\\dotfiles\\wezterm\\todoist.ps1' },
