@@ -4,16 +4,19 @@
 # WezTerm gui-startup からバックグラウンド実行される。
 # 用法: herdr-bootstrap.sh [--configure-only] [--skip-extra] [--skip-review]
 #
-#   w1 デフォルト   : Commander / Codex Work - Main / Utility / Sol（2026-10-19 Sol と入替）
+#   w1 デフォルト   : おうち / Sol / T-SSS / Codex Work - Main（Mac は自宅用。上下を Windows と逆にし、
+#                     Utility を「おうち」、Commander を「T-SSS」と呼ぶ。2026-11-01）
 #   w2 Extra        : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra
 #   w3 📮 受付      : Loop Inbox Receiver / 🦍 Loop Commander / 🐦 Loop Commander / Loop Utility の4枠（2026-10-20）。
 #                     Mac では Loop 制御をしないため、ペインを作るだけで何も起動しない
 #   w4 🦍 EXECUTION : Execution Slot 1。Supervisor / Reviewer A / Worker A / Worker B
 #   w5 🐦 EXECUTION : Execution Slot 2。4役・ペイン名は w4 と同じ（Windows と同じ契約）
+#   w6 🛠 Work      : 手動作業用。Claude Work - Desk 1 / Codex Work - Desk 1 / Claude Work - Desk 2 / Codex Work - Desk 2
+#                     （Windows 2026-10-29 追加分を 2026-11-01 に反映）
 #   ※ Mac は構成の生成まで。Loop 制御（submit / reset / wake / drain）は Windows のみ（2026-09-24 洸さん判断）
 #   （2026-09-24 再編。Windows と同じ作成順）
 #
-# CommanderはSupervisorではない。実行LoopへはTask Packetをpendingへ投入して渡す。
+# T-SSS（Windows の Commander に相当）はSupervisorではない。実行LoopへはTask Packetをpendingへ投入して渡す。
 # Supervisorへの直接相談と、Supervisor自身による成果物作成は禁止する。
 
 set -euo pipefail
@@ -60,7 +63,7 @@ CODEX_ACCOUNT_SCRIPT="$HOME/dotfiles/wezterm/codex-account.sh"
 # 不足分が末尾に追加される（順番を正すには herdr server の作り直しが要る）。
 # ※「🦍 EXECUTION」「🐦 EXECUTION」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
 #   契約の正本は loop-inbox/_common.py の SLOTS。slot 2 の役割名は slot 1 の名前に `-2`、LOOP_SLOT は 1 / 2。
-WORKSPACE_PLAN=('デフォルト' 'Extra' '📮 受付' '🦍 EXECUTION' '🐦 EXECUTION')
+WORKSPACE_PLAN=('デフォルト' 'Extra' '📮 受付' '🦍 EXECUTION' '🐦 EXECUTION' '🛠 Work')
 
 legacy_label_for() {
   case "$1" in
@@ -237,15 +240,18 @@ EXTRA_WS=$(resolve_workspace 1 'Extra')
 RECEPTION_WS=$(resolve_workspace 2 '📮 受付')
 EXECUTION_WS=$(resolve_workspace 3 '🦍 EXECUTION')
 EXECUTION2_WS=$(resolve_workspace 4 '🐦 EXECUTION')
+DESK_WS=$(resolve_workspace 5 '🛠 Work')
 
-# デフォルト: 相談窓口とTask Packet作成。CommanderはSupervisorではない。
+# デフォルト: 相談窓口とTask Packet作成。T-SSS（Windows の Commander）はSupervisorではない。
 # 4枚目は旧 Status 枠を Codex 会社にする（2026-09-24）。Codex 会社の2枠は
 # 「Codex Work - Main」「Codex Work - Extra」とし、一方が他方の前方一致にならない名前にする。
 # 2026-10-19: 2枚目と4枚目を入れ替え（Codex Work - Main を右上、Sol を右下）。Sol のモデル表記は削除。
+# 2026-11-01: Mac は自宅用なので上下を入れ替え（上段 = 個人 おうち / Sol、下段 = 会社 T-SSS / Codex Work - Main）。
+#   Mac では Utility を「おうち」、Commander を「T-SSS」と呼ぶ（Windows は Utility / Commander のまま）。
 init_pane_grid "$CONTROL_WS" 4
 apply_pane_labels "$CONTROL_WS" \
-  'Commander - Claude Work / Opus 5' 'Codex Work - Main' \
-  'Utility - Claude Personal' 'Sol - Codex Personal'
+  'おうち - Claude Personal' 'Sol - Codex Personal' \
+  'T-SSS - Claude Work / Opus 5' 'Codex Work - Main'
 
 # EXTRA: 4枚目は旧「Codex - Extra」を Windows と同じ「Codex Work - Extra」に改名（中身は同じ Codex 会社）。
 init_pane_grid "$EXTRA_WS" 4
@@ -266,6 +272,12 @@ unset _ws
 init_pane_grid "$RECEPTION_WS" 4
 apply_pane_labels "$RECEPTION_WS"   'Loop Inbox Receiver' '🦍 Loop Commander - Claude Work / Opus 5'   '🐦 Loop Commander - Claude Work / Sonnet 5' 'Loop Utility - Claude Work / Sonnet 5'
 
+# 🛠 Work: 手動作業用の会社Claude / 会社Codex 各2枠（Windows と同じ名前）。
+# ラベルは「Desk 1」「Desk 2」とし、既存の「- Extra」「- Main」と前方一致で衝突させない。
+init_pane_grid "$DESK_WS" 4
+apply_pane_labels "$DESK_WS" \
+  'Claude Work - Desk 1' 'Codex Work - Desk 1' 'Claude Work - Desk 2' 'Codex Work - Desk 2'
+
 LIVE_PANE_IDS=$(live_agent_pane_ids)
 
 # Mac のプロファイル対応は Windows と逆:
@@ -273,17 +285,19 @@ LIVE_PANE_IDS=$(live_agent_pane_ids)
 CLAUDE_WORK_DIR="$HOME/.claude-work"
 
 # --- CONTROL / ENTRY ---
-start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Commander - Claude Work / Opus 5')" \
-  'Commander' \
-  bash -c "unset NO_COLOR; export FORCE_COLOR=3 COLORTERM=truecolor CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=commander; cd $WORK_ROOT && claude --model opus --name commander"
+# Mac では Loop 制御をしないので、セッション名・AGMSG_AGENT も t-sss にする（Windows の commander とは別物）。
+start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'T-SSS - Claude Work / Opus 5')" \
+  'T-SSS' \
+  bash -c "unset NO_COLOR; export FORCE_COLOR=3 COLORTERM=truecolor CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=t-sss; cd $WORK_ROOT && claude --model opus --name t-sss"
 
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Sol - Codex Personal')" \
   'Sol' \
   bash -c "export AGMSG_AGENT=codex-sol; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT personal"
 
-start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Utility - Claude Personal')" \
-  'Utility' \
-  bash -c "unset NO_COLOR CLAUDE_CONFIG_DIR; export FORCE_COLOR=3 COLORTERM=truecolor AGMSG_AGENT=utility; cd $WORK_ROOT && claude --name utility"
+# Mac では Utility を「おうち」と呼ぶ（セッション名・AGMSG_AGENT も ouchi）。
+start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'おうち - Claude Personal')" \
+  'おうち' \
+  bash -c "unset NO_COLOR CLAUDE_CONFIG_DIR; export FORCE_COLOR=3 COLORTERM=truecolor AGMSG_AGENT=ouchi; cd $WORK_ROOT && claude --name ouchi"
 
 # 旧 Status 枠（Shellのまま起動しなかった）を Codex 会社にする（2026-09-24）。
 # AGMSG_AGENT は agmsg 登録済みの `codex`（旧 会社Codex）を使う。
@@ -336,6 +350,23 @@ if [ "$SKIP_EXTRA" = false ]; then
     'Codex Work - Extra' \
     bash -c "export AGMSG_AGENT=codex-extra; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
 fi
+
+# --- 🛠 Work（AGMSG_AGENT は agmsg 未登録。Windows と同じ名前）---
+start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Claude Work - Desk 1')" \
+  'Claude Work - Desk 1' \
+  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=claude-desk-1; cd $WORK_ROOT && claude --name claude-desk-1"
+
+start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Codex Work - Desk 1')" \
+  'Codex Work - Desk 1' \
+  bash -c "export AGMSG_AGENT=codex-desk-1; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
+
+start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Claude Work - Desk 2')" \
+  'Claude Work - Desk 2' \
+  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=claude-desk-2; cd $WORK_ROOT && claude --name claude-desk-2"
+
+start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Codex Work - Desk 2')" \
+  'Codex Work - Desk 2' \
+  bash -c "export AGMSG_AGENT=codex-desk-2; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
 
 herdr workspace focus "$CONTROL_WS" >/dev/null 2>&1 || true
 
