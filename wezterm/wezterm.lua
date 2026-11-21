@@ -224,43 +224,36 @@ local function spawn_in_new_tab(cmd)
   return act.SpawnCommandInNewTab { args = args, cwd = launcher_cwd }
 end
 
--- ===== レイアウト（2026-09-24 更新: WezTerm は Herdr を表示する箱＋作業用タブ） =====
+-- ===== レイアウト（2026-11-17 更新: 常駐は4面1枚。WezTerm は Herdr を表示する箱＋作業用タブ） =====
 -- 起動直後は分割せず、唯一のペインで Herdr 本体(TUI)を全画面起動する（1枚目のタブ）。
--- レイアウトもワークスペース切替も Herdr 自身が持つ（サイドバーの spaces をクリック、または Ctrl+Shift+1〜6）。
--- F9 で選んだアプリは現在選択中のエリアへ送る。
--- ┌──────────┬──────────────────────────────────────────┐
--- │ spaces   │  フォーカス中ワークスペースのエージェント群 │
--- │ デフォルト│  （Herdr が 2x2 等に自動レイアウト）        │
--- │ Extra    │                                          │
--- │ 📮 受付  │  切り替えはサイドバーの spaces をクリック    │
--- │ 🦍 EXEC  │  （Ctrl+Shift+1〜6 でも切替）                │
--- │ 🐦 EXEC  │                                          │
--- │ 🛠 Work  │                                          │
--- └──────────┴──────────────────────────────────────────┘
+-- レイアウトは Herdr 自身が持つ。F9 で選んだアプリは現在選択中のエリアへ送る。
 --   起動時に herdr-bootstrap（-ConfigureOnly / --configure-only）をバックグラウンドで走らせ、
 --   サーバー起動→ワークスペース/ペイン構成→エージェント起動まで行う。
 --   その完了をペイン側で待ってから herdr TUI クライアントを起動する。
---   Herdrのワークスペース（herdr-bootstrap が構築。Windows / Mac 共通の並び）:
---     w1 デフォルト    : Win = Commander / Codex Work - Main / Utility / Sol（2x2）
---                        Mac = おうち / Sol / T-SSS / Codex Work - Main（自宅用に上下逆。Utility を「おうち」、Commander を「T-SSS」と呼ぶ）
+--
+--   Windows（herdr-bootstrap.ps1。2026-11-17 再編）: ワークスペースは「デフォルト」1つ、4面だけ。
+--   ┌──────────────────────────────┬──────────────────────────┐
+--   │ Commander（会社Claude・メイン）│ Codex Work - Main（会社） │
+--   ├──────────────────────────────┼──────────────────────────┤
+--   │ Claude Work - Extra（会社2本目）│ Utility（個人Claude）     │
+--   └──────────────────────────────┴──────────────────────────┘
+--     左下の Claude Work - Extra は、Pigeon（pigeon-loop）を都度呼び出すときにも使う。専用の窓口は常駐させない。
+--     Grok / Antigravity CLI / 個人Codex は常駐させず、使うときだけ F9 から起動する。
+--     2026-11-17 に外したもの: Extra / 📮 受付 / 🦍 EXECUTION / 🐦 EXECUTION / 🛠 Work と Loop Inbox Receiver
+--     （🦍ループを外し、Pigeon はループに乗せず pigeon コマンドを都度実行する形にした）。
+--
+--   Mac（herdr-bootstrap.sh）: 2026-11-17 の再編の対象外で、旧構成（w1〜w6）のまま。
+--     w1 デフォルト    : おうち / Sol / T-SSS / Codex Work - Main（自宅用に上下逆。Utility を「おうち」、Commander を「T-SSS」と呼ぶ）
 --     w2 Extra         : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra（2x2）
---     w3 📮 受付       : Loop Inbox Receiver / 🦍 Loop Commander / 🐦 Loop Commander / Loop Utility（2x2。Mac は枠だけ）
---     w4 🦍 EXECUTION  : Execution Slot 1。Supervisor / Reviewer A / Worker A / Worker B（2x2）
---     w5 🐦 EXECUTION  : Execution Slot 2。w4 と同じ4役。Pigeon の run はここだけ（2026-10-20）
---     w6 🛠 Work       : 手動作業用。Claude Work - Desk 1 / Codex Work - Desk 1 / Claude Work - Desk 2 / Codex Work - Desk 2（2x2）
---   ※ ラベル「🦍 EXECUTION」「🐦 EXECUTION」と4役の同居は変更しないこと。
---      loop-inbox/loop_reset_execution.py がこのラベル1つで4役をまとめて探している（2026-09-24 調査）。
---      制御と実行の分離、Worker 追加（w5 以降に置く想定）は🦍ループ本体の別課題。
---   ※ Codex 会社の2枠は「- Main」「- Extra」と先頭が一致しない名前にする
---      （ループの宛先探しがペイン名の前方一致のため、取り違え防止）。
---   ※ Local LLM ワークスペースは 2026-09-24 に廃止（再構築予定）。
---   ※ 相談窓口は Commander（Mac では「T-SSS」）。実行は Task Packet を pending へ投入して Supervisor に渡す。
---      Supervisorへ直接相談せず、Supervisor自身も成果物を作らない。
---   ※ Extra を常駐させたくないときは herdr-bootstrap に --skip-extra / -SkipExtra を渡す。
---      Reviewer A を常駐させたくないときは --skip-review / -SkipReview を渡す。
+--     w3 📮 受付       : 枠だけ
+--     w4 🦍 EXECUTION / w5 🐦 EXECUTION : Supervisor / Reviewer A / Worker A / Worker B（2x2）
+--     w6 🛠 Work       : Claude Work - Desk 1 / Codex Work - Desk 1 / Claude Work - Desk 2 / Codex Work - Desk 2（2x2）
+--     Extra を常駐させたくないときは herdr-bootstrap.sh に --skip-extra、Reviewer A は --skip-review を渡す。
+--
 --   ※ ワークスペース番号は herdr の作成順で決まる（並べ替えコマンドが無い）。
---      既存セッションへ後から追加すると末尾に付くため、番号どおりに
---      並べたい場合は herdr server を作り直してから bootstrap を走らせる。
+--      既存セッションへ後から追加すると末尾に付く。
+--   ※ herdr はサーバーを止めても session.json からワークスペース構成を復元する。
+--      旧構成のワークスペースを消すには、サーバーを止めて保存状態を退避してから起動し直す。
 wezterm.on('gui-startup', function(cmd)
   -- Herdrブートストラップ(ConfigureOnly)をバックグラウンドで実行。
   -- 無言で落ちると原因を追えないため、出力は必ずログへ落とす。
@@ -1015,9 +1008,10 @@ config.keys = {
       end),
     },
   },
-  -- Herdr workspace switch: Ctrl+Shift+1〜6 で デフォルト / Extra / 📮 受付 / 🦍 EXECUTION / 🐦 EXECUTION / 🛠 Work を切替（Win/Mac 共通）
-  -- 番号は herdr の作成順（bootstrap の WORKSPACE_PLAN / $workspacePlan の並び）に対応する。
-  -- ※ bootstrap の並び替えと herdr server の作り直しが済むまでは、旧構成の順番で動く。
+  -- Herdr workspace switch: Ctrl+Shift+1〜6 で Herdr のワークスペース w1〜w6 を切替（Win/Mac 共通）
+  -- 番号は herdr の作成順に対応する。
+  -- Windows は 2026-11-17 の再編で常駐が w1（デフォルト）だけになった。2〜6 は、Herdr 側でワークスペースを
+  -- 手動で追加したときだけ効く（存在しない番号は何も起きない）。Mac は旧構成の w1〜w6 に対応する。
   -- ※ WezTerm 標準の「Ctrl+Shift+数字でタブ切替」を上書きしている。タブ移動は Ctrl+Tab / Ctrl+Shift+Tab を使う。
   { key = '1', mods = 'CTRL|SHIFT', action = wezterm.action_callback(function()
     wezterm.background_child_process { herdr_exe, 'workspace', 'focus', 'w1' }
