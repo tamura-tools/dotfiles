@@ -1,23 +1,25 @@
 #!/bin/bash
 # herdr-bootstrap.sh — Mac版 Herdr ブートストラップ
-# Windows の herdr-bootstrap.ps1 と同じ役割構成。Mac固有の既存差異は維持する。
 # WezTerm gui-startup からバックグラウンド実行される。
-# 用法: herdr-bootstrap.sh [--configure-only] [--skip-extra] [--skip-review]
+# 用法: herdr-bootstrap.sh [--configure-only]
 #
-#   w1 デフォルト   : おうち / Sol / T-SSS / Codex Work - Main（Mac は自宅用。上下を Windows と逆にし、
-#                     Utility を「おうち」、Commander を「T-SSS」と呼ぶ。2026-11-01）
-#   w2 Extra        : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra
-#   w3 📮 受付      : Loop Inbox Receiver / 🦍 Loop Commander / 🐦 Loop Commander / Loop Utility の4枠（2026-10-20）。
-#                     Mac では Loop 制御をしないため、ペインを作るだけで何も起動しない
-#   w4 🦍 EXECUTION : Execution Slot 1。Supervisor / Reviewer A / Worker A / Worker B
-#   w5 🐦 EXECUTION : Execution Slot 2。4役・ペイン名は w4 と同じ（Windows と同じ契約）
-#   w6 🛠 Work      : 手動作業用。Claude Work - Desk 1 / Codex Work - Desk 1 / Claude Work - Desk 2 / Codex Work - Desk 2
-#                     （Windows 2026-10-29 追加分を 2026-11-01 に反映）
-#   ※ Mac は構成の生成まで。Loop 制御（submit / reset / wake / drain）は Windows のみ（2026-09-24 洸さん判断）
-#   （2026-09-24 再編。Windows と同じ作成順）
-#
-# T-SSS（Windows の Commander に相当）はSupervisorではない。実行LoopへはTask Packetをpendingへ投入して渡す。
-# Supervisorへの直接相談と、Supervisor自身による成果物作成は禁止する。
+# ===== 構成（2026-11-21 再編。Windows 版の 2026-11-17 再編に合わせた）=====
+# 起動時に作るワークスペースは「デフォルト」1つ、4面だけ。
+#   ┌──────────────────────────────┬──────────────────────────┐
+#   │ おうち（個人Claude）           │ Sol（個人Codex）          │
+#   ├──────────────────────────────┼──────────────────────────┤
+#   │ T-SSS（会社Claude・メイン）    │ Codex Work - Main（会社） │
+#   └──────────────────────────────┴──────────────────────────┘
+#   Mac は自宅用なので、4面の中身は Windows と揃えていない（2026-11-01 の配置のまま）。
+#     - 上段 = 個人、下段 = 会社（Windows は上段が会社）
+#     - Windows の Utility を「おうち」、Commander を「T-SSS」と呼ぶ
+#     - Windows 左下の「Claude Work - Extra」は置かず、Sol（個人Codex）を常駐させる
+# 2026-11-21 に外したもの（必要になったら dotfiles の git 履歴から戻す）:
+#   - Extra（Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra）と 🛠 Work
+#     … 使うときだけ F9 ランチャーから起動する
+#   - 📮 受付 / 🦍 EXECUTION / 🐦 EXECUTION … Windows 側で🦍ループを外したため。
+#     Mac は元々 Loop 制御をせず、枠とエージェントを作るだけだった
+# herdr には並べ替えコマンドが無く、番号は作成順で決まる。
 
 set -euo pipefail
 
@@ -45,35 +47,36 @@ if ! command -v herdr >/dev/null 2>&1; then
 fi
 
 CONFIGURE_ONLY=false
-SKIP_EXTRA=false
-SKIP_REVIEW=false
 for arg in "$@"; do
   case "$arg" in
     --configure-only) CONFIGURE_ONLY=true ;;
-    --skip-extra)     SKIP_EXTRA=true ;;
-    --skip-review)    SKIP_REVIEW=true ;;
+    # 2026-11-21: 対象のワークスペース（Extra / EXECUTION）を廃止したため未使用。
+    # 古い呼び出しが失敗しないよう、受け付けるだけにしている。
+    --skip-extra|--skip-review) ;;
   esac
 done
 
 WORK_ROOT="$HOME/claude"
 CODEX_ACCOUNT_SCRIPT="$HOME/dotfiles/wezterm/codex-account.sh"
 
-# ワークスペースは「番号順 = この並び順」で扱う。herdr には並べ替えコマンドが無く、
-# 番号は作成順で決まる。新規セッションではこの順に作られ、既存セッションでは
-# 不足分が末尾に追加される（順番を正すには herdr server の作り直しが要る）。
-# ※「🦍 EXECUTION」「🐦 EXECUTION」のラベルと4役のペイン名は Windows 版と揃え、変更しないこと。
-#   契約の正本は loop-inbox/_common.py の SLOTS。slot 2 の役割名は slot 1 の名前に `-2`、LOOP_SLOT は 1 / 2。
-WORKSPACE_PLAN=('デフォルト' 'Extra' '📮 受付' '🦍 EXECUTION' '🐦 EXECUTION' '🛠 Work')
+WORKSPACE_PLAN=('デフォルト')
 
 legacy_label_for() {
   case "$1" in
     'デフォルト')    echo 'CONTROL / ENTRY' ;;
-    'Extra')         echo 'Extra Agents' ;;
-    '🦍 EXECUTION')  echo 'Review Agents' ;;
-    '📮 受付')       echo '🦍 受付' ;;          # 2026-10-20 受付を4分割
-    '🐦 EXECUTION')  echo '🐦 EXECUTION 2' ;;   # 2026-10-20 slot 2 改名（旧 🦍 EXECUTION 2 は位置で採用）
   esac
 }
+
+# 廃止したワークスペース。既存セッションに残っていても、位置による採用・リネームの対象にしない
+# （残っていた旧ワークスペースが「デフォルト」として転用されるのを防ぐ）。
+# 旧ワークスペース自体はこのスクリプトでは閉じない。消すときは `herdr workspace close <id>` を使う。
+RETIRED_WORKSPACE_LABELS=(
+  'Extra' 'Extra Agents'
+  '📮 受付' '🦍 受付'
+  '🦍 EXECUTION' 'Review Agents'
+  '🐦 EXECUTION' '🐦 EXECUTION 2'
+  '🛠 Work'
+)
 
 # ---------- サーバー管理 ----------
 
@@ -118,10 +121,18 @@ plan_contains() {
   return 1
 }
 
+retired_contains() {
+  local needle="$1" item
+  for item in "${RETIRED_WORKSPACE_LABELS[@]}"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
 # 計画順にワークスペースを解決する。
 #   1. 同じラベルが既にあればそれを使う
-#   2. その位置に「計画外のラベル」のワークスペースがあれば採用してリネームする
-#      （新規セッションの既定ワークスペースを w1 CORE として拾うため）
+#   2. その位置に「計画外かつ廃止済みでないラベル」のワークスペースがあれば採用してリネームする
+#      （新規セッションの既定ワークスペースを w1 として拾うため）
 #   3. どちらでもなければ新規作成する（既存セッションでは末尾に付く）
 resolve_workspace() {
   local index="$1" label="$2" ws_id legacy_label legacy_id candidate_id candidate_label
@@ -132,8 +143,7 @@ resolve_workspace() {
     return
   fi
 
-  # 旧役割名は位置ではなくラベルで移行する。既存環境でReview Agentsが末尾に
-  # ある場合もExtra Agentsを誤ってEXECUTIONへ転用しない。
+  # 旧役割名は位置ではなくラベルで移行する。
   legacy_label=$(legacy_label_for "$label")
   legacy_id=$(ws_id_by_label "$legacy_label")
   if [ -n "$legacy_id" ]; then
@@ -145,7 +155,8 @@ resolve_workspace() {
 
   candidate_id=$(ws_ids_in_order | sed -n "$((index + 1))p")
   candidate_label=$(ws_labels_in_order | sed -n "$((index + 1))p")
-  if [ -n "$candidate_id" ] && ! plan_contains "$candidate_label"; then
+  if [ -n "$candidate_id" ] && ! plan_contains "$candidate_label" \
+      && ! retired_contains "$candidate_label"; then
     echo "Renaming workspace: $candidate_label -> $label" >&2
     herdr workspace rename "$candidate_id" "$label" >/dev/null
     echo "$candidate_id"
@@ -236,47 +247,14 @@ start_agent_if_missing() {
 start_server
 
 CONTROL_WS=$(resolve_workspace 0 'デフォルト')
-EXTRA_WS=$(resolve_workspace 1 'Extra')
-RECEPTION_WS=$(resolve_workspace 2 '📮 受付')
-EXECUTION_WS=$(resolve_workspace 3 '🦍 EXECUTION')
-EXECUTION2_WS=$(resolve_workspace 4 '🐦 EXECUTION')
-DESK_WS=$(resolve_workspace 5 '🛠 Work')
 
-# デフォルト: 相談窓口とTask Packet作成。T-SSS（Windows の Commander）はSupervisorではない。
-# 4枚目は旧 Status 枠を Codex 会社にする（2026-09-24）。Codex 会社の2枠は
-# 「Codex Work - Main」「Codex Work - Extra」とし、一方が他方の前方一致にならない名前にする。
-# 2026-10-19: 2枚目と4枚目を入れ替え（Codex Work - Main を右上、Sol を右下）。Sol のモデル表記は削除。
-# 2026-11-01: Mac は自宅用なので上下を入れ替え（上段 = 個人 おうち / Sol、下段 = 会社 T-SSS / Codex Work - Main）。
-#   Mac では Utility を「おうち」、Commander を「T-SSS」と呼ぶ（Windows は Utility / Commander のまま）。
+# デフォルト: 4面（左上 → 右上 → 左下 → 右下 の順にラベルを付ける）。
+# ラベルは、一方が他方の前方一致にならない名前にする（ペイン名で宛先を探す処理の取り違え防止）。
+# 2026-11-01: Mac は自宅用なので上段 = 個人（おうち / Sol）、下段 = 会社（T-SSS / Codex Work - Main）。
 init_pane_grid "$CONTROL_WS" 4
 apply_pane_labels "$CONTROL_WS" \
   'おうち - Claude Personal' 'Sol - Codex Personal' \
   'T-SSS - Claude Work / Opus 5' 'Codex Work - Main'
-
-# EXTRA: 4枚目は旧「Codex - Extra」を Windows と同じ「Codex Work - Extra」に改名（中身は同じ Codex 会社）。
-init_pane_grid "$EXTRA_WS" 4
-apply_pane_labels "$EXTRA_WS" \
-  'Grok' 'Antigravity CLI' 'Claude Work - Extra' 'Codex Work - Extra'
-
-# EXECUTION: 入力はTask Packetのみ。独立 run を最大2本（slot 1 = 🦍 EXECUTION / slot 2 = 🐦 EXECUTION）。
-# 1 slot = 1 run。ReviewerはAのみ。ペイン名は両 slot 共通。
-for _ws in "$EXECUTION_WS" "$EXECUTION2_WS"; do
-  init_pane_grid "$_ws" 4
-  apply_pane_labels "$_ws" \
-    'Supervisor - Claude Work / Opus 5' 'Reviewer A - Codex Work / GPT-6.1 Sol' \
-    'Worker A - Gemini 3.8 Flash' 'Worker B - Claude Work / Sonnet 5'
-done
-unset _ws
-
-# 📮 受付: Windows と同じ名前の4枠を作る。Mac では Loop 制御をしないため何も起動しない。
-init_pane_grid "$RECEPTION_WS" 4
-apply_pane_labels "$RECEPTION_WS"   'Loop Inbox Receiver' '🦍 Loop Commander - Claude Work / Opus 5'   '🐦 Loop Commander - Claude Work / Sonnet 5' 'Loop Utility - Claude Work / Sonnet 5'
-
-# 🛠 Work: 手動作業用の会社Claude / 会社Codex 各2枠（Windows と同じ名前）。
-# ラベルは「Desk 1」「Desk 2」とし、既存の「- Extra」「- Main」と前方一致で衝突させない。
-init_pane_grid "$DESK_WS" 4
-apply_pane_labels "$DESK_WS" \
-  'Claude Work - Desk 1' 'Codex Work - Desk 1' 'Claude Work - Desk 2' 'Codex Work - Desk 2'
 
 LIVE_PANE_IDS=$(live_agent_pane_ids)
 
@@ -284,8 +262,7 @@ LIVE_PANE_IDS=$(live_agent_pane_ids)
 #   個人 = 既定の ~/.claude / 会社 = ~/.claude-work
 CLAUDE_WORK_DIR="$HOME/.claude-work"
 
-# --- CONTROL / ENTRY ---
-# Mac では Loop 制御をしないので、セッション名・AGMSG_AGENT も t-sss にする（Windows の commander とは別物）。
+# セッション名・AGMSG_AGENT は Mac 固有の t-sss / ouchi（Windows の commander / utility とは別物）。
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'T-SSS - Claude Work / Opus 5')" \
   'T-SSS' \
   bash -c "unset NO_COLOR; export FORCE_COLOR=3 COLORTERM=truecolor CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=t-sss; cd $WORK_ROOT && claude --model opus --name t-sss"
@@ -294,79 +271,14 @@ start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Sol - Codex Personal')
   'Sol' \
   bash -c "export AGMSG_AGENT=codex-sol; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT personal"
 
-# Mac では Utility を「おうち」と呼ぶ（セッション名・AGMSG_AGENT も ouchi）。
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'おうち - Claude Personal')" \
   'おうち' \
   bash -c "unset NO_COLOR CLAUDE_CONFIG_DIR; export FORCE_COLOR=3 COLORTERM=truecolor AGMSG_AGENT=ouchi; cd $WORK_ROOT && claude --name ouchi"
 
-# 旧 Status 枠（Shellのまま起動しなかった）を Codex 会社にする（2026-09-24）。
-# AGMSG_AGENT は agmsg 登録済みの `codex`（旧 会社Codex）を使う。
+# AGMSG_AGENT は agmsg 登録済みの `codex`（会社Codex）を使う。
 start_agent_if_missing "$(pane_id_by_label "$CONTROL_WS" 'Codex Work - Main')" \
   'Codex Work - Main' \
   bash -c "export AGMSG_AGENT=codex; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
-
-# --- EXECUTION（slot 1 / slot 2。slot 2 は役割名に -2、LOOP_SLOT=2。Windows の $loopSupervisor2 等と同じ契約）---
-start_execution_slot() {
-  local ws="$1" slot="$2" sfx="$3" tag="$4"
-  start_agent_if_missing "$(pane_id_by_label "$ws" 'Supervisor - Claude Work / Opus 5')" \
-    "Supervisor$tag" \
-    bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-supervisor$sfx; cd $WORK_ROOT && claude --model opus --name loop-supervisor$sfx"
-
-  if [ "$SKIP_REVIEW" = false ]; then
-    # Reviewer A は会社Codex（GPT-6.1 Sol）。Windows と同じ契約（2026-10-15 Opus から切替）
-    start_agent_if_missing "$(pane_id_by_label "$ws" 'Reviewer A - Codex Work / GPT-6.1 Sol')" \
-      "Reviewer A$tag" \
-      bash -c "export LOOP_SLOT=$slot AGMSG_AGENT=loop-review-a$sfx; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work -- --model gpt-6.1-sol"
-  fi
-
-  # Macでも既存のagyを使う。自動承認はONだが、既存の物理deny / guardrailは変更しない。
-  start_agent_if_missing "$(pane_id_by_label "$ws" 'Worker A - Gemini 3.8 Flash')" \
-    "Worker A - Gemini 3.8 Flash$tag" \
-    bash -c "export LOOP_SLOT=$slot AGMSG_AGENT=loop-worker-gemini$sfx; cd $WORK_ROOT && agy --model gemini-3.8-flash-medium --mode accept-edits --dangerously-skip-permissions"
-
-  start_agent_if_missing "$(pane_id_by_label "$ws" 'Worker B - Claude Work / Sonnet 5')" \
-    "Worker B - Sonnet 5$tag" \
-    bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR LOOP_SLOT=$slot AGMSG_AGENT=loop-worker-sonnet$sfx; cd $WORK_ROOT && claude --model sonnet --name loop-worker-sonnet$sfx"
-}
-
-start_execution_slot "$EXECUTION_WS" 1 '' ''
-start_execution_slot "$EXECUTION2_WS" 2 '-2' ' (slot 2)'
-
-# --- EXTRA（--skip-extra で丸ごと省略できる）---
-if [ "$SKIP_EXTRA" = false ]; then
-  start_agent_if_missing "$(pane_id_by_label "$EXTRA_WS" 'Grok')" \
-    'Grok' \
-    bash -c "cd $WORK_ROOT && grok"
-
-  start_agent_if_missing "$(pane_id_by_label "$EXTRA_WS" 'Antigravity CLI')" \
-    'Antigravity CLI' \
-    bash -c "cd $WORK_ROOT && agy"
-
-  start_agent_if_missing "$(pane_id_by_label "$EXTRA_WS" 'Claude Work - Extra')" \
-    'Claude Work - Extra' \
-    bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=claude-extra; cd $WORK_ROOT && claude --model opus --name claude-extra"
-
-  start_agent_if_missing "$(pane_id_by_label "$EXTRA_WS" 'Codex Work - Extra')" \
-    'Codex Work - Extra' \
-    bash -c "export AGMSG_AGENT=codex-extra; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
-fi
-
-# --- 🛠 Work（AGMSG_AGENT は agmsg 未登録。Windows と同じ名前）---
-start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Claude Work - Desk 1')" \
-  'Claude Work - Desk 1' \
-  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=claude-desk-1; cd $WORK_ROOT && claude --name claude-desk-1"
-
-start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Codex Work - Desk 1')" \
-  'Codex Work - Desk 1' \
-  bash -c "export AGMSG_AGENT=codex-desk-1; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
-
-start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Claude Work - Desk 2')" \
-  'Claude Work - Desk 2' \
-  bash -c "export CLAUDE_CONFIG_DIR=$CLAUDE_WORK_DIR AGMSG_AGENT=claude-desk-2; cd $WORK_ROOT && claude --name claude-desk-2"
-
-start_agent_if_missing "$(pane_id_by_label "$DESK_WS" 'Codex Work - Desk 2')" \
-  'Codex Work - Desk 2' \
-  bash -c "export AGMSG_AGENT=codex-desk-2; cd $WORK_ROOT && $CODEX_ACCOUNT_SCRIPT work"
 
 herdr workspace focus "$CONTROL_WS" >/dev/null 2>&1 || true
 

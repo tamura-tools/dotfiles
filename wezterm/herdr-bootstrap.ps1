@@ -34,7 +34,8 @@ $workRoot = 'C:\claude'
 #     Pigeon はループに乗せず、pigeon コマンドを都度実行する
 # ※ loop-inbox/loop_reset_execution.py と tests/test_slot_contract.py は、このファイルの旧記述
 #   （$loopSupervisor 等・slot 1 / 2 の契約）を前提にしている。🦍ループを再開する場合は旧版を戻すこと。
-# ※ Mac 版 herdr-bootstrap.sh はこの再編の対象外（2026-11-17 時点で旧構成のまま）。
+# ※ Mac 版 herdr-bootstrap.sh も 2026-11-21 に同じ「デフォルト1つ・4面」へ再編した
+#   （4面の中身は自宅用で異なる: おうち / Sol / T-SSS / Codex Work - Main）。
 # herdr には並べ替えコマンドが無く、番号は作成順で決まる。
 $workspacePlan = @(
     'デフォルト'

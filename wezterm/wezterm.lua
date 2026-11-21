@@ -242,13 +242,16 @@ end
 --     2026-11-17 に外したもの: Extra / 📮 受付 / 🦍 EXECUTION / 🐦 EXECUTION / 🛠 Work と Loop Inbox Receiver
 --     （🦍ループを外し、Pigeon はループに乗せず pigeon コマンドを都度実行する形にした）。
 --
---   Mac（herdr-bootstrap.sh）: 2026-11-17 の再編の対象外で、旧構成（w1〜w6）のまま。
---     w1 デフォルト    : おうち / Sol / T-SSS / Codex Work - Main（自宅用に上下逆。Utility を「おうち」、Commander を「T-SSS」と呼ぶ）
---     w2 Extra         : Grok / Antigravity CLI / Claude Work - Extra / Codex Work - Extra（2x2）
---     w3 📮 受付       : 枠だけ
---     w4 🦍 EXECUTION / w5 🐦 EXECUTION : Supervisor / Reviewer A / Worker A / Worker B（2x2）
---     w6 🛠 Work       : Claude Work - Desk 1 / Codex Work - Desk 1 / Claude Work - Desk 2 / Codex Work - Desk 2（2x2）
---     Extra を常駐させたくないときは herdr-bootstrap.sh に --skip-extra、Reviewer A は --skip-review を渡す。
+--   Mac（herdr-bootstrap.sh。2026-11-21 再編）: Windows と同じく「デフォルト」1つ、4面だけ。
+--   ┌──────────────────────────────┬──────────────────────────┐
+--   │ おうち（個人Claude）           │ Sol（個人Codex）          │
+--   ├──────────────────────────────┼──────────────────────────┤
+--   │ T-SSS（会社Claude・メイン）    │ Codex Work - Main（会社） │
+--   └──────────────────────────────┴──────────────────────────┘
+--     Mac は自宅用なので4面の中身は Windows と揃えていない（上段 = 個人。Utility を「おうち」、
+--     Commander を「T-SSS」と呼ぶ。Claude Work - Extra の代わりに Sol を常駐させる）。
+--     2026-11-21 に外したもの: Extra / 📮 受付 / 🦍 EXECUTION / 🐦 EXECUTION / 🛠 Work。
+--     Grok / Antigravity CLI は使うときだけ F9 から起動する。
 --
 --   ※ ワークスペース番号は herdr の作成順で決まる（並べ替えコマンドが無い）。
 --      既存セッションへ後から追加すると末尾に付く。
@@ -1010,8 +1013,8 @@ config.keys = {
   },
   -- Herdr workspace switch: Ctrl+Shift+1〜6 で Herdr のワークスペース w1〜w6 を切替（Win/Mac 共通）
   -- 番号は herdr の作成順に対応する。
-  -- Windows は 2026-11-17 の再編で常駐が w1（デフォルト）だけになった。2〜6 は、Herdr 側でワークスペースを
-  -- 手動で追加したときだけ効く（存在しない番号は何も起きない）。Mac は旧構成の w1〜w6 に対応する。
+  -- 常駐は w1（デフォルト）だけ（Windows は 2026-11-17、Mac は 2026-11-21 に再編）。2〜6 は、Herdr 側で
+  -- ワークスペースを手動で追加したときだけ効く（存在しない番号は何も起きない）。
   -- ※ WezTerm 標準の「Ctrl+Shift+数字でタブ切替」を上書きしている。タブ移動は Ctrl+Tab / Ctrl+Shift+Tab を使う。
   { key = '1', mods = 'CTRL|SHIFT', action = wezterm.action_callback(function()
     wezterm.background_child_process { herdr_exe, 'workspace', 'focus', 'w1' }
